@@ -175,16 +175,15 @@ export default function App() {
     setActiveTab('home');
   };
 
-  // Inline font scale style rules
-  const fontStyle = {
-    fontSize: `${settings.fontScale}%`
-  };
+  // Apply font scale to document root so Tailwind's rem classes scale correctly
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${settings.fontScale}%`;
+  }, [settings.fontScale]);
 
   return (
     <div 
       className="min-h-screen bg-background text-on-background relative overflow-x-hidden font-sans select-none"
       style={{
-        ...fontStyle,
         "--mouse-x": mousePos.x,
         "--mouse-y": mousePos.y
       } as React.CSSProperties}

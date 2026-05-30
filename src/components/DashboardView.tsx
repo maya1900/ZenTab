@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LucideIcon, AVAILABLE_LINK_ICONS } from './LucideIcon';
-import { QuickLink, Quote, QUOTES_LIST, DEFAULT_QUICK_LINKS, UserSettings, Task } from '../types';
+import { QuickLink, NexusItem, LinkFolder, isFolder, Quote, QUOTES_LIST, DEFAULT_QUICK_LINKS, UserSettings, Task } from '../types';
 import { translations } from '../translations';
 
 interface DashboardViewProps {
-  quickLinks: QuickLink[];
-  setQuickLinks: (links: QuickLink[]) => void;
+  quickLinks: NexusItem[];
+  setQuickLinks: React.Dispatch<React.SetStateAction<NexusItem[]>>;
   settings: UserSettings;
   updateSettings: (key: keyof UserSettings, value: any) => void;
   tasks: Task[];
@@ -29,6 +29,29 @@ interface SearchResult {
   longitude: number;
   country: string;
   admin1?: string;
+}
+
+type DragSource =
+  | { kind: 'top'; id: string }
+  | { kind: 'folder-link'; folderId: string; linkId: string };
+
+type DropIntent = 'before' | 'after' | 'folder';
+
+interface DragPreviewItem {
+  name: string;
+  iconName: string;
+  isFolder: boolean;
+}
+
+interface PointerDragState {
+  pointerId: number;
+  source: DragSource;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+  active: boolean;
+  item: DragPreviewItem;
 }
 
 const CITY_WEATHER_DATABASE: Record<string, SimulatedWeather> = {
@@ -188,6 +211,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [linkInputUrl, setLinkInputUrl] = useState('');
   const [linkInputIcon, setLinkInputIcon] = useState('Link2');
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
+
+  // Drag & drop + folder states
+  const [dragSource, setDragSource] = useState<DragSource | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dropIntent, setDropIntent] = useState<DropIntent | null>(null);
+  const [pointerDrag, setPointerDrag] = useState<PointerDragState | null>(null);
+  const quickLinksGridRef = useRef<HTMLDivElement | null>(null);
+  const topItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const suppressNextClickRef = useRef(false);
+  const suppressNextClickTimerRef = useRef<number | null>(null);
+  const dragSourceRef = useRef<DragSource | null>(null);
+  const dropStateRef = useRef<{ targetId: string | null; intent: DropIntent | null }>({ targetId: null, intent: null });
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
+  const [renamingFolder, setRenamingFolder] = useState(false);
+  const [folderNameDraft, setFolderNameDraft] = useState('');
+  // When set, the link form is adding a link inside this folder
+  const [activeFolderForForm, setActiveFolderForForm] = useState<string | null>(null);
 
   // Quotes states
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
@@ -393,12 +433,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
 
     if (editingLinkId) {
+      // Edit an existing link wherever it lives (top level or inside a folder)
       setQuickLinks(
-        quickLinks.map((link) =>
-          link.id === editingLinkId
-            ? { ...link, name: linkInputName.trim(), url, iconName: linkInputIcon }
-            : link
-        )
+        quickLinks.map((item) => {
+          if (item.id === editingLinkId && !isFolder(item)) {
+            return { ...item, name: linkInputName.trim(), url, iconName: linkInputIcon };
+          }
+          if (isFolder(item)) {
+            return {
+              ...item,
+              links: item.links.map((l) =>
+                l.id === editingLinkId
+                  ? { ...l, name: linkInputName.trim(), url, iconName: linkInputIcon }
+                  : l
+              )
+            };
+          }
+          return item;
+        })
       );
       setEditingLinkId(null);
     } else {
@@ -408,16 +460,46 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         url,
         iconName: linkInputIcon
       };
-      setQuickLinks([...quickLinks, newLink]);
+      if (activeFolderForForm) {
+        // Add into the targeted folder
+        setQuickLinks(
+          quickLinks.map((item) =>
+            isFolder(item) && item.id === activeFolderForForm
+              ? { ...item, links: [...item.links, newLink] }
+              : item
+          )
+        );
+      } else {
+        setQuickLinks([...quickLinks, newLink]);
+      }
     }
 
     setLinkInputName('');
     setLinkInputUrl('');
     setLinkInputIcon('Link2');
+    setActiveFolderForForm(null);
   };
 
+  // Delete a link from the top level or from inside any folder.
+  // Folders that drop to a single link auto-dissolve back into a plain link.
   const handleLinkDelete = (id: string) => {
-    setQuickLinks(quickLinks.filter((link) => link.id !== id));
+    const next: NexusItem[] = [];
+    quickLinks.forEach((item) => {
+      if (isFolder(item)) {
+        const remaining = item.links.filter((l) => l.id !== id);
+        if (remaining.length === item.links.length) {
+          next.push(item);
+        } else if (remaining.length > 1) {
+          next.push({ ...item, links: remaining });
+        } else if (remaining.length === 1) {
+          next.push(remaining[0]); // dissolve folder back to single link
+        }
+        // remaining.length === 0 -> drop folder entirely
+      } else if (item.id !== id) {
+        next.push(item);
+      }
+    });
+    setQuickLinks(next);
   };
 
   const handleLinkEditFill = (link: QuickLink) => {
@@ -425,6 +507,389 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setLinkInputName(link.name);
     setLinkInputUrl(link.url);
     setLinkInputIcon(link.iconName);
+    setActiveFolderForForm(null);
+    const formEl = document.getElementById('link-editor-container');
+    formEl?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleFolderDelete = (folderId: string) => {
+    setQuickLinks(quickLinks.filter((item) => item.id !== folderId));
+    if (openFolderId === folderId) setOpenFolderId(null);
+  };
+
+  // Break a folder apart, spilling its links back into the grid in place.
+  const handleUngroupFolder = (folderId: string) => {
+    const next: NexusItem[] = [];
+    quickLinks.forEach((item) => {
+      if (isFolder(item) && item.id === folderId) {
+        next.push(...item.links);
+      } else {
+        next.push(item);
+      }
+    });
+    setQuickLinks(next);
+    if (openFolderId === folderId) setOpenFolderId(null);
+  };
+
+  const handleFolderRename = (folderId: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setQuickLinks(
+      quickLinks.map((item) =>
+        isFolder(item) && item.id === folderId ? { ...item, name: trimmed } : item
+      )
+    );
+  };
+
+  // Move a link out of its folder back to the top level grid.
+  const suppressNextClick = () => {
+    suppressNextClickRef.current = true;
+    if (suppressNextClickTimerRef.current) {
+      window.clearTimeout(suppressNextClickTimerRef.current);
+    }
+    suppressNextClickTimerRef.current = window.setTimeout(() => {
+      suppressNextClickRef.current = false;
+      suppressNextClickTimerRef.current = null;
+    }, 250);
+  };
+
+  const shouldSuppressClick = () => {
+    if (!suppressNextClickRef.current) return false;
+    suppressNextClickRef.current = false;
+    if (suppressNextClickTimerRef.current) {
+      window.clearTimeout(suppressNextClickTimerRef.current);
+      suppressNextClickTimerRef.current = null;
+    }
+    return true;
+  };
+
+  const getDragSourceId = (source: DragSource | null) => {
+    if (!source) return null;
+    return source.kind === 'top' ? source.id : source.linkId;
+  };
+
+  const getSourcePreviewItem = (source: DragSource, items: NexusItem[] = quickLinks): DragPreviewItem | null => {
+    if (source.kind === 'top') {
+      const item = items.find((i) => i.id === source.id);
+      if (!item) return null;
+      return {
+        name: item.name,
+        iconName: isFolder(item) ? 'Folder' : item.iconName,
+        isFolder: isFolder(item)
+      };
+    }
+
+    const folder = items.find((i) => i.id === source.folderId && isFolder(i)) as LinkFolder | undefined;
+    const link = folder?.links.find((l) => l.id === source.linkId);
+    return link ? { name: link.name, iconName: link.iconName, isFolder: false } : null;
+  };
+
+  const isSourceFolder = (source: DragSource, items: NexusItem[] = quickLinks) => {
+    if (source.kind !== 'top') return false;
+    const item = items.find((i) => i.id === source.id);
+    return item ? isFolder(item) : false;
+  };
+
+  const removeSourceFromItems = (items: NexusItem[], source: DragSource) => {
+    let moved: NexusItem | QuickLink | null = null;
+    let sourceFolderIndex = -1;
+    const next: NexusItem[] = [];
+
+    items.forEach((item, index) => {
+      if (source.kind === 'top') {
+        if (item.id === source.id) {
+          moved = item;
+          return;
+        }
+        next.push(item);
+        return;
+      }
+
+      if (isFolder(item) && item.id === source.folderId) {
+        sourceFolderIndex = index;
+        const target = item.links.find((l) => l.id === source.linkId);
+        if (target) moved = target;
+        const remaining = item.links.filter((l) => l.id !== source.linkId);
+        if (remaining.length > 1) {
+          next.push({ ...item, links: remaining });
+        } else if (remaining.length === 1) {
+          next.push(remaining[0]);
+        }
+        return;
+      }
+
+      next.push(item);
+    });
+
+    return { items: next, moved, sourceFolderIndex };
+  };
+
+  const insertAtTopLevel = (items: NexusItem[], moved: NexusItem, index: number) => {
+    const boundedIndex = Math.max(0, Math.min(index, items.length));
+    return [...items.slice(0, boundedIndex), moved, ...items.slice(boundedIndex)];
+  };
+
+  const applyDropToItems = (
+    items: NexusItem[],
+    source: DragSource,
+    targetId: string | null,
+    intent: DropIntent | null
+  ): NexusItem[] | null => {
+    if (source.kind === 'top' && source.id === targetId) return null;
+    if (source.kind === 'folder-link' && source.linkId === targetId) return null;
+
+    const { items: withoutSource, moved, sourceFolderIndex } = removeSourceFromItems(items, source);
+    if (!moved) return null;
+
+    if (!targetId || !intent) {
+      return [...withoutSource, moved];
+    }
+
+    const targetIndex = withoutSource.findIndex((i) => i.id === targetId);
+    const target = targetIndex >= 0 ? withoutSource[targetIndex] : undefined;
+    const sourceIsFolder = isFolder(moved as NexusItem);
+
+    if (intent === 'folder' && target && !sourceIsFolder) {
+      if (source.kind === 'folder-link' && targetId === source.folderId) {
+        const fallbackIndex = sourceFolderIndex >= 0 ? Math.min(sourceFolderIndex, withoutSource.length) : withoutSource.length;
+        return insertAtTopLevel(withoutSource, moved, fallbackIndex);
+      }
+
+      if (isFolder(target)) {
+        return withoutSource.map((item) =>
+          item.id === targetId && isFolder(item)
+            ? { ...item, links: [...item.links, moved as QuickLink] }
+            : item
+        );
+      }
+
+      const newFolder: LinkFolder = {
+        id: `f-${Date.now()}`,
+        name: t.newFolder,
+        links: [target as QuickLink, moved as QuickLink]
+      };
+      return withoutSource.map((item) => (item.id === targetId ? newFolder : item));
+    }
+
+    if (targetIndex !== -1) {
+      const insertAt = intent === 'before' ? targetIndex : targetIndex + 1;
+      return insertAtTopLevel(withoutSource, moved, insertAt);
+    }
+
+    if (source.kind === 'folder-link' && targetId === source.folderId && sourceFolderIndex >= 0) {
+      const insertAt = intent === 'before' ? sourceFolderIndex : sourceFolderIndex + 1;
+      return insertAtTopLevel(withoutSource, moved, insertAt);
+    }
+
+    return [...withoutSource, moved];
+  };
+
+  // Move a link out of its folder back to the top level grid.
+  const handleMoveLinkOut = (folderId: string, linkId: string) => {
+    setQuickLinks((prev) => {
+      const next = applyDropToItems(prev, { kind: 'folder-link', folderId, linkId }, null, null);
+      if (next && openFolderId === folderId) {
+        const stillExists = next.some((i) => i.id === folderId && isFolder(i));
+        if (!stillExists) setOpenFolderId(null);
+      }
+      return next ?? prev;
+    });
+  };
+
+  // ---- Drag & drop ---------------------------------------------------------
+  const resetDragState = () => {
+    dragSourceRef.current = null;
+    dropStateRef.current = { targetId: null, intent: null };
+    setDragSource(null);
+    setDragOverId(null);
+    setDropIntent(null);
+    setPointerDrag(null);
+  };
+
+  const setDropState = (targetId: string | null, intent: DropIntent | null) => {
+    dropStateRef.current = { targetId, intent };
+    setDragOverId(targetId);
+    setDropIntent(intent);
+  };
+
+  const computeDropIntent = (clientX: number, targetId: string, source: DragSource, rect?: DOMRect): DropIntent | null => {
+    const target = quickLinks.find((i) => i.id === targetId);
+    if (!target) {
+      if (source.kind === 'folder-link' && targetId === source.folderId) {
+        const fallbackRect = topItemRefs.current[targetId]?.getBoundingClientRect();
+        if (!fallbackRect && !rect) return null;
+        const ratio = (clientX - (rect ?? fallbackRect!).left) / (rect ?? fallbackRect!).width;
+        return ratio < 0.5 ? 'before' : 'after';
+      }
+      return null;
+    }
+
+    const targetRect = rect ?? topItemRefs.current[targetId]?.getBoundingClientRect();
+    if (!targetRect) return null;
+    const ratio = (clientX - targetRect.left) / targetRect.width;
+    const draggedIsFolder = isSourceFolder(source);
+    const targetIsFolder = isFolder(target);
+    const sameParentFolder = source.kind === 'folder-link' && source.folderId === targetId;
+
+    if (!sameParentFolder && targetIsFolder && !draggedIsFolder) {
+      return 'folder';
+    }
+    if (!targetIsFolder && !draggedIsFolder && ratio > 0.3 && ratio < 0.7) {
+      return 'folder';
+    }
+    return ratio < 0.5 ? 'before' : 'after';
+  };
+
+  const updateDropTargetFromPoint = (clientX: number, clientY: number, source: DragSource) => {
+    const entries = Object.entries(topItemRefs.current) as Array<[string, HTMLDivElement | null]>;
+    for (const [id, node] of entries) {
+      if (!node) continue;
+      const rect = node.getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+        const intent = computeDropIntent(clientX, id, source, rect);
+        if (intent) {
+          setDropState(id, intent);
+          return;
+        }
+      }
+    }
+
+    const gridRect = quickLinksGridRef.current?.getBoundingClientRect();
+    if (gridRect && clientX >= gridRect.left && clientX <= gridRect.right && clientY >= gridRect.top && clientY <= gridRect.bottom) {
+      setDropState(null, null);
+      return;
+    }
+
+    setDropState(null, null);
+  };
+
+  const commitDrop = (source = dragSourceRef.current, targetId = dropStateRef.current.targetId, intent = dropStateRef.current.intent) => {
+    if (!source) {
+      resetDragState();
+      return;
+    }
+
+    setQuickLinks((prev) => {
+      const next = applyDropToItems(prev, source, targetId, intent);
+      if (next && source.kind === 'folder-link' && openFolderId === source.folderId) {
+        const stillExists = next.some((i) => i.id === source.folderId && isFolder(i));
+        if (!stillExists) setOpenFolderId(null);
+      }
+      return next ?? prev;
+    });
+    resetDragState();
+  };
+
+  const beginNativeDrag = (e: React.DragEvent, source: DragSource) => {
+    dragSourceRef.current = source;
+    setDragSource(source);
+    e.dataTransfer.effectAllowed = 'move';
+    try {
+      e.dataTransfer.setData('text/plain', getDragSourceId(source) ?? '');
+    } catch (_) {}
+  };
+
+  const handleItemDragOver = (e: React.DragEvent, targetId: string) => {
+    const source = dragSourceRef.current ?? dragSource;
+    if (!source || getDragSourceId(source) === targetId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const intent = computeDropIntent(e.clientX, targetId, source, rect);
+    if (intent) setDropState(targetId, intent);
+  };
+
+  const handleItemDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    commitDrop();
+  };
+
+  const handleFolderOverlayDragOver = (e: React.DragEvent) => {
+    const source = dragSourceRef.current ?? dragSource;
+    if (!source || source.kind !== 'folder-link') return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    updateDropTargetFromPoint(e.clientX, e.clientY, source);
+  };
+
+  const handleFolderOverlayDrop = (e: React.DragEvent) => {
+    const source = dragSourceRef.current ?? dragSource;
+    if (!source || source.kind !== 'folder-link') return;
+    e.preventDefault();
+    commitDrop(source);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>, source: DragSource) => {
+    if (!isEditingLinks || e.pointerType === 'mouse') return;
+    if ((e.target as HTMLElement).closest('[data-no-drag]')) return;
+    const item = getSourcePreviewItem(source);
+    if (!item) return;
+
+    dragSourceRef.current = source;
+    setDragSource(source);
+    setPointerDrag({
+      pointerId: e.pointerId,
+      source,
+      startX: e.clientX,
+      startY: e.clientY,
+      currentX: e.clientX,
+      currentY: e.clientY,
+      active: false,
+      item
+    });
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    setPointerDrag((current) => {
+      if (!current || current.pointerId !== e.pointerId) return current;
+
+      const delta = Math.hypot(e.clientX - current.startX, e.clientY - current.startY);
+      const active = current.active || delta > 8;
+      if (active) {
+        e.preventDefault();
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch (_) {}
+        updateDropTargetFromPoint(e.clientX, e.clientY, current.source);
+      }
+
+      return { ...current, currentX: e.clientX, currentY: e.clientY, active };
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLElement>) => {
+    const current = pointerDrag;
+    if (!current || current.pointerId !== e.pointerId) return;
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+
+    if (current.active) {
+      e.preventDefault();
+      suppressNextClick();
+      commitDrop(current.source);
+    } else {
+      resetDragState();
+    }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLElement>) => {
+    if (!pointerDrag || pointerDrag.pointerId !== e.pointerId) return;
+    resetDragState();
+  };
+
+  const handleLinkClick = (e: React.MouseEvent) => {
+    if (isEditingLinks || shouldSuppressClick()) e.preventDefault();
+  };
+
+  const handleFolderClick = (e: React.MouseEvent, folderId: string) => {
+    if (shouldSuppressClick() || isEditingLinks) {
+      e.preventDefault();
+      return;
+    }
+    setOpenFolderId(folderId);
   };
 
   const handleRestoreDefaultLinks = () => {
@@ -432,15 +897,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       ? "确定要恢复初始通道预设吗？你的自定义通道会被保留，但缺失的默认通道会被重新添加。"
       : "Restore original link presets? Any custom entries will remain, but missing defaults will be added!";
     if (confirm(confirmMsg)) {
+      // Collect every existing link name (top level + nested) to avoid dupes
+      const existingNames = new Set<string>();
+      quickLinks.forEach((item) => {
+        if (isFolder(item)) {
+          item.links.forEach((l) => existingNames.add(l.name.toLowerCase()));
+        } else {
+          existingNames.add(item.name.toLowerCase());
+        }
+      });
       const merged = [...quickLinks];
       DEFAULT_QUICK_LINKS.forEach((def) => {
-        if (!merged.some((m) => m.name.toLowerCase() === def.name.toLowerCase())) {
+        if (!existingNames.has(def.name.toLowerCase())) {
           merged.push(def);
         }
       });
       setQuickLinks(merged);
     }
   };
+
+  const openFolder = openFolderId
+    ? (quickLinks.find((i) => i.id === openFolderId && isFolder(i)) as LinkFolder | undefined)
+    : undefined;
 
   // Wisdom Quote Actions
   const handleShuffleQuote = () => {
@@ -776,53 +1254,147 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Dynamic customized link list */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-6 justify-items-center">
+        {/* Dynamic customized link list (drag to reorder / drop to group) */}
+        {isEditingLinks && (
+          <p className="text-[11px] text-on-surface-variant/45 font-sans mb-4 flex items-center gap-1.5 select-none">
+            <LucideIcon name="Info" size={12} />
+            {t.dragToReorderHint}
+          </p>
+        )}
+        <div ref={quickLinksGridRef} className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-6 justify-items-center">
           <AnimatePresence>
-            {quickLinks.map((link) => (
-              <motion.div
-                key={link.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="group relative flex flex-col items-center gap-2 cursor-pointer w-20 text-center"
-              >
-                {/* Clickable Card link */}
-                <a
-                  href={isEditingLinks ? undefined : link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-14 h-14 rounded-full bg-surface-container/40 border border-outline-variant/10 backdrop-blur-md flex items-center justify-center transition-all duration-300 group-hover:bg-primary group-hover:text-on-primary group-hover:shadow-[0_0_20px_rgba(192,193,255,0.4)] group-hover:border-primary/50 relative active:scale-95"
+            {quickLinks.map((item) => {
+              const itemIsFolder = isFolder(item);
+              const topSource: DragSource = { kind: 'top', id: item.id };
+              const isDragging = dragSource?.kind === 'top' && dragSource.id === item.id;
+              const isDragTarget = dragOverId === item.id;
+              const showFolderRing = isDragTarget && dropIntent === 'folder';
+              const showBefore = isDragTarget && dropIntent === 'before';
+              const showAfter = isDragTarget && dropIntent === 'after';
+
+              return (
+                <motion.div
+                  key={item.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: isDragging ? 0.4 : 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="w-20"
                 >
-                  <LucideIcon name={link.iconName} size={24} className="text-on-surface group-hover:text-on-primary transition-colors" />
-                </a>
+                  <div
+                    ref={(node) => { topItemRefs.current[item.id] = node; }}
+                    draggable
+                    onDragStart={(e) => beginNativeDrag(e, topSource)}
+                    onDragOver={(e) => handleItemDragOver(e, item.id)}
+                    onDragLeave={() => { if (dragOverId === item.id) setDropState(null, null); }}
+                    onDrop={handleItemDrop}
+                    onDragEnd={resetDragState}
+                    onPointerDown={(e) => handlePointerDown(e, topSource)}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerCancel}
+                    style={{ touchAction: isEditingLinks ? 'none' : 'auto' }}
+                    className="group relative flex flex-col items-center gap-2 cursor-grab active:cursor-grabbing w-20 text-center"
+                  >
+                  {/* Insertion markers for reorder */}
+                  {showBefore && (
+                    <span className="absolute -left-3 top-2 h-14 w-[3px] rounded-full bg-primary shadow-[0_0_8px_rgba(192,193,255,0.7)] z-10" />
+                  )}
+                  {showAfter && (
+                    <span className="absolute -right-3 top-2 h-14 w-[3px] rounded-full bg-primary shadow-[0_0_8px_rgba(192,193,255,0.7)] z-10" />
+                  )}
 
-                <span className="font-sans text-xs text-on-surface-variant group-hover:text-primary transition-colors font-medium truncate w-full px-1">
-                  {link.name}
-                </span>
+                  {itemIsFolder ? (
+                    /* ---- Folder tile ---- */
+                    <button
+                      type="button"
+                      onClick={(e) => handleFolderClick(e, item.id)}
+                      className={`w-14 h-14 rounded-2xl bg-surface-container/40 border backdrop-blur-md grid grid-cols-2 grid-rows-2 gap-1 p-2 transition-all duration-300 hover:bg-surface-container/70 hover:border-primary/40 active:scale-95 ${
+                        showFolderRing ? 'border-primary ring-2 ring-primary/60 scale-105' : 'border-outline-variant/10'
+                      }`}
+                      title={item.name}
+                    >
+                      {(item as LinkFolder).links.slice(0, 4).map((l) => (
+                        <span key={l.id} className="flex items-center justify-center text-on-surface/80 pointer-events-none">
+                          <LucideIcon name={l.iconName} size={12} />
+                        </span>
+                      ))}
+                    </button>
+                  ) : (
+                    /* ---- Single link tile ---- */
+                    <a
+                      href={isEditingLinks ? undefined : item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={handleLinkClick}
+                      className={`w-14 h-14 rounded-full bg-surface-container/40 border backdrop-blur-md flex items-center justify-center transition-all duration-300 group-hover:bg-primary group-hover:text-on-primary group-hover:shadow-[0_0_20px_rgba(192,193,255,0.4)] group-hover:border-primary/50 relative active:scale-95 ${
+                        showFolderRing ? 'border-primary ring-2 ring-primary/60 scale-105' : 'border-outline-variant/10'
+                      }`}
+                    >
+                      <LucideIcon name={item.iconName} size={24} className="text-on-surface group-hover:text-on-primary transition-colors pointer-events-none" />
+                    </a>
+                  )}
 
-                {/* Edit overlay triggers */}
-                {isEditingLinks && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] rounded-2xl p-1 gap-1.5 transition-all">
-                    <button
-                      onClick={() => handleLinkEditFill(link)}
-                      className="text-teal-400 hover:scale-110 p-1 cursor-pointer"
-                      title={t.editLinks}
-                    >
-                      <LucideIcon name="Edit" size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleLinkDelete(link.id)}
-                      className="text-error hover:scale-110 p-1 cursor-pointer"
-                      title="Delete link"
-                    >
-                      <LucideIcon name="Trash2" size={14} />
-                    </button>
+                  <span className="font-sans text-xs text-on-surface-variant group-hover:text-primary transition-colors font-medium truncate w-full px-1">
+                    {item.name}
+                  </span>
+
+                  {/* Edit overlay triggers */}
+                  {isEditingLinks && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] rounded-2xl p-1 gap-1.5 transition-all">
+                      {itemIsFolder ? (
+                        <>
+                          <button
+                            data-no-drag
+                            onClick={() => setOpenFolderId(item.id)}
+                            className="text-teal-400 hover:scale-110 p-1 cursor-pointer"
+                            title={t.openFolder}
+                          >
+                            <LucideIcon name="FolderOpen" size={14} />
+                          </button>
+                          <button
+                            data-no-drag
+                            onClick={() => handleUngroupFolder(item.id)}
+                            className="text-amber-400 hover:scale-110 p-1 cursor-pointer"
+                            title={t.ungroupFolder}
+                          >
+                            <LucideIcon name="Folder" size={14} />
+                          </button>
+                          <button
+                            data-no-drag
+                            onClick={() => handleFolderDelete(item.id)}
+                            className="text-error hover:scale-110 p-1 cursor-pointer"
+                            title="Delete folder"
+                          >
+                            <LucideIcon name="Trash2" size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            data-no-drag
+                            onClick={() => handleLinkEditFill(item)}
+                            className="text-teal-400 hover:scale-110 p-1 cursor-pointer"
+                            title={t.editLinks}
+                          >
+                            <LucideIcon name="Edit" size={14} />
+                          </button>
+                          <button
+                            data-no-drag
+                            onClick={() => handleLinkDelete(item.id)}
+                            className="text-error hover:scale-110 p-1 cursor-pointer"
+                            title="Delete link"
+                          >
+                            <LucideIcon name="Trash2" size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
                   </div>
-                )}
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
 
             {/* Direct insert quick link card */}
             {isEditingLinks && (
@@ -834,6 +1406,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className="w-14 h-14 rounded-full border-2 border-dashed border-outline-variant/40 hover:border-primary/50 flex items-center justify-center cursor-pointer transition-colors bg-white/5 active:scale-95"
                   onClick={() => {
                     setEditingLinkId(null);
+                    setActiveFolderForForm(null);
                     setLinkInputName('');
                     setLinkInputUrl('');
                     setLinkInputIcon('Link2');
@@ -861,12 +1434,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             className="mt-8 bg-surface-container/20 border border-outline-variant/10 p-5 rounded-xl border-dashed"
           >
             <div className="flex items-center justify-between mb-4 border-b border-outline-variant/15 pb-2">
-              <h4 className="font-sans text-xs font-semibold text-primary/80 uppercase">
+              <h4 className="font-sans text-xs font-semibold text-primary/80 uppercase flex items-center gap-1.5">
+                {activeFolderForForm && <LucideIcon name="FolderPlus" size={13} />}
                 {editingLinkId ? t.modifyLink : t.addLinkShort}
+                {activeFolderForForm && (() => {
+                  const f = quickLinks.find((i) => i.id === activeFolderForForm && isFolder(i)) as LinkFolder | undefined;
+                  return f ? (
+                    <span className="text-on-surface-variant/50 normal-case font-normal">→ {f.name}</span>
+                  ) : null;
+                })()}
               </h4>
-              {editingLinkId && (
-                <button 
-                  onClick={() => { setEditingLinkId(null); setLinkInputName(''); setLinkInputUrl(''); }}
+              {(editingLinkId || activeFolderForForm) && (
+                <button
+                  onClick={() => { setEditingLinkId(null); setActiveFolderForForm(null); setLinkInputName(''); setLinkInputUrl(''); }}
                   className="text-xs text-on-surface-variant/60 hover:text-emphasis cursor-pointer"
                 >
                   {t.cancel}
@@ -975,6 +1555,187 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </motion.div>
         )}
       </section>
+
+      {/* Folder Modal: open a folder to launch / manage its links */}
+      <AnimatePresence>
+        {openFolder && (
+          <motion.div
+            key="folder-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={() => { setOpenFolderId(null); setRenamingFolder(false); }}
+            onDragOver={handleFolderOverlayDragOver}
+            onDrop={handleFolderOverlayDrop}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 10 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl border border-outline-variant/15 relative"
+            >
+              {/* Header: folder name (editable) + close */}
+              <div className="flex items-center justify-between mb-5 gap-3">
+                {renamingFolder ? (
+                  <input
+                    autoFocus
+                    value={folderNameDraft}
+                    onChange={(e) => setFolderNameDraft(e.target.value)}
+                    onBlur={() => { handleFolderRename(openFolder.id, folderNameDraft); setRenamingFolder(false); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { handleFolderRename(openFolder.id, folderNameDraft); setRenamingFolder(false); }
+                      if (e.key === 'Escape') setRenamingFolder(false);
+                    }}
+                    maxLength={24}
+                    className="bg-surface-container/60 border border-primary/30 rounded-lg px-3 py-1.5 text-emphasis text-lg font-semibold focus:outline-none focus:ring-1 focus:ring-primary/45 w-full"
+                  />
+                ) : (
+                  <button
+                    onClick={() => { setFolderNameDraft(openFolder.name); setRenamingFolder(true); }}
+                    className="flex items-center gap-2 text-emphasis text-lg font-semibold hover:text-primary transition-colors group cursor-pointer min-w-0"
+                    title={t.renameFolder}
+                  >
+                    <LucideIcon name="Folder" size={18} className="text-primary shrink-0" />
+                    <span className="truncate">{openFolder.name}</span>
+                    <LucideIcon name="Edit" size={13} className="opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+                  </button>
+                )}
+                <button
+                  onClick={() => { setOpenFolderId(null); setRenamingFolder(false); }}
+                  className="p-1.5 text-on-surface-variant/60 hover:text-emphasis hover:bg-white/5 rounded-full transition-colors shrink-0 cursor-pointer"
+                >
+                  <LucideIcon name="X" size={18} />
+                </button>
+              </div>
+
+              {/* Links grid inside the folder */}
+              {openFolder.links.length === 0 ? (
+                <p className="text-center text-on-surface-variant/50 text-sm py-10">{t.emptyFolder}</p>
+              ) : (
+                <div className="grid grid-cols-4 gap-5 justify-items-center">
+                  {openFolder.links.map((l) => {
+                    const folderLinkSource: DragSource = { kind: 'folder-link', folderId: openFolder.id, linkId: l.id };
+                    const isDraggingFolderLink = dragSource?.kind === 'folder-link' && dragSource.linkId === l.id;
+
+                    return (
+                    <div
+                      key={l.id}
+                      draggable={isEditingLinks}
+                      onDragStart={(e) => beginNativeDrag(e, folderLinkSource)}
+                      onDragEnd={resetDragState}
+                      onPointerDown={(e) => handlePointerDown(e, folderLinkSource)}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      onPointerCancel={handlePointerCancel}
+                      style={{ touchAction: isEditingLinks ? 'none' : 'auto' }}
+                      className={`group relative flex flex-col items-center gap-2 w-16 text-center cursor-grab active:cursor-grabbing ${isDraggingFolderLink ? 'opacity-40' : ''}`}
+                    >
+                      <a
+                        href={isEditingLinks ? undefined : l.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={handleLinkClick}
+                        className="w-14 h-14 rounded-full bg-surface-container/40 border border-outline-variant/10 backdrop-blur-md flex items-center justify-center transition-all duration-300 group-hover:bg-primary group-hover:shadow-[0_0_20px_rgba(192,193,255,0.4)] group-hover:border-primary/50 active:scale-95"
+                      >
+                        <LucideIcon name={l.iconName} size={24} className="text-on-surface group-hover:text-on-primary transition-colors pointer-events-none" />
+                      </a>
+                      <span className="font-sans text-[11px] text-on-surface-variant group-hover:text-primary transition-colors font-medium truncate w-full">
+                        {l.name}
+                      </span>
+                      {isEditingLinks && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] rounded-2xl gap-1.5">
+                          <button
+                            data-no-drag
+                            onClick={() => handleLinkEditFill(l)}
+                            className="text-teal-400 hover:scale-110 p-1 cursor-pointer"
+                            title={t.editLinks}
+                          >
+                            <LucideIcon name="Edit" size={13} />
+                          </button>
+                          <button
+                            data-no-drag
+                            onClick={() => handleMoveLinkOut(openFolder.id, l.id)}
+                            className="text-amber-400 hover:scale-110 p-1 cursor-pointer"
+                            title={t.removeFromFolder}
+                          >
+                            <LucideIcon name="FolderOpen" size={13} />
+                          </button>
+                          <button
+                            data-no-drag
+                            onClick={() => handleLinkDelete(l.id)}
+                            className="text-error hover:scale-110 p-1 cursor-pointer"
+                            title="Delete link"
+                          >
+                            <LucideIcon name="Trash2" size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Footer actions: only while editing */}
+              {isEditingLinks && (
+                <div className="mt-6 pt-4 border-t border-outline-variant/10 flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => handleUngroupFolder(openFolder.id)}
+                    className="text-[11px] text-on-surface-variant/60 hover:text-error transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <LucideIcon name="Folder" size={12} />
+                    {t.ungroupFolder}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveFolderForForm(openFolder.id);
+                      setEditingLinkId(null);
+                      setLinkInputName('');
+                      setLinkInputUrl('');
+                      setLinkInputIcon('Link2');
+                      setOpenFolderId(null);
+                      setTimeout(() => {
+                        document.getElementById('link-editor-container')?.scrollIntoView({ behavior: 'smooth' });
+                      }, 50);
+                    }}
+                    className="text-xs bg-primary text-on-primary rounded-lg px-3 py-1.5 font-semibold flex items-center gap-1 hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <LucideIcon name="Plus" size={13} />
+                    {t.newLink}
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pointerDrag?.active && (
+          <motion.div
+            key="quick-link-drag-preview"
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            className="fixed z-[90] pointer-events-none flex flex-col items-center gap-1 -translate-x-1/2 -translate-y-1/2"
+            style={{ left: pointerDrag.currentX, top: pointerDrag.currentY }}
+          >
+            <div className={`w-14 h-14 ${pointerDrag.item.isFolder ? 'rounded-2xl grid grid-cols-2 grid-rows-2 gap-1 p-2' : 'rounded-full flex items-center justify-center'} bg-primary text-on-primary border border-primary shadow-[0_0_28px_rgba(192,193,255,0.55)] backdrop-blur-md`}>
+              {pointerDrag.item.isFolder ? (
+                <LucideIcon name="Folder" size={24} className="col-span-2 row-span-2 m-auto" />
+              ) : (
+                <LucideIcon name={pointerDrag.item.iconName} size={24} />
+              )}
+            </div>
+            <span className="max-w-24 truncate rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-sans text-white shadow-lg">
+              {pointerDrag.item.name}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Bottom section: Ethereal Quotes Card with full offline wisdom shuffle & action controls */}
       <section className="glass-panel p-8 rounded-2xl flex flex-col items-center text-center relative shadow-md">

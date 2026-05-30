@@ -40,7 +40,10 @@ import {
   CheckCircle2,
   EyeOff,
   CloudLightning,
-  CloudRain
+  CloudRain,
+  Folder,
+  FolderOpen,
+  FolderPlus
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -84,7 +87,10 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   CheckCircle2,
   EyeOff,
   CloudLightning,
-  CloudRain
+  CloudRain,
+  Folder,
+  FolderOpen,
+  FolderPlus
 };
 
 interface LucideIconProps {
@@ -97,11 +103,12 @@ export const LucideIcon: React.FC<LucideIconProps> = ({ name, className = '', si
   if (name.startsWith('favicon:')) {
     const domain = name.split(':')[1];
     return (
-      <img 
-        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=128`} 
+      <img
+        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=128`}
         alt="Favicon"
+        draggable={false}
         style={{ width: size, height: size }}
-        className={`object-contain ${className}`} 
+        className={`object-contain ${className}`}
       />
     );
   }

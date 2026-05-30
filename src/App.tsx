@@ -5,13 +5,13 @@ import { HomeView } from './components/HomeView';
 import { DashboardView } from './components/DashboardView';
 import { TasksView } from './components/TasksView';
 import { SettingsView } from './components/SettingsView';
-import { 
-  Task, 
-  QuickLink, 
-  Quote, 
-  UserSettings, 
-  DEFAULT_QUICK_LINKS, 
-  BACKGROUND_PRESETS 
+import {
+  Task,
+  NexusItem,
+  Quote,
+  UserSettings,
+  DEFAULT_QUICK_LINKS,
+  BACKGROUND_PRESETS
 } from './types';
 import { translations } from './translations';
 
@@ -85,7 +85,7 @@ export default function App() {
     return INITIAL_TASKS_PRESET;
   });
 
-  const [quickLinks, setQuickLinks] = useState<QuickLink[]>(() => {
+  const [quickLinks, setQuickLinks] = useState<NexusItem[]>(() => {
     const saved = localStorage.getItem('zentab_links');
     if (saved) {
       try {

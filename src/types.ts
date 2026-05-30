@@ -14,6 +14,18 @@ export interface QuickLink {
   iconName: string; // lucide icon name or emoji
 }
 
+export interface LinkFolder {
+  id: string;
+  name: string;
+  links: QuickLink[];
+}
+
+// A slot in the Quick Links grid is either a single link or a folder of links.
+export type NexusItem = QuickLink | LinkFolder;
+
+export const isFolder = (item: NexusItem): item is LinkFolder =>
+  Array.isArray((item as LinkFolder).links);
+
 export interface Quote {
   text: string;
   author: string;

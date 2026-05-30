@@ -1,0 +1,6 @@
+{
+  "name": "ZenTab",
+  "description": "Your digital tab sanctuary—a clean, minimalist start page with customizable backdrops, focus timer, daily tasks, quick links, and real-time weather.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

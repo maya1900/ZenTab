@@ -1,0 +1,116 @@
+@import 'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap';
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--color-background);
+  --color-on-background: var(--color-on-background);
+  --color-primary: var(--color-primary);
+  --color-surface-container: var(--color-surface-container);
+  --color-surface-container-high: var(--color-surface-container-high);
+  --color-surface-container-highest: var(--color-surface-container-highest);
+  --color-surface-container-lowest: var(--color-surface-container-lowest);
+  --color-on-surface-variant: var(--color-on-surface-variant);
+  --color-outline-variant: var(--color-outline-variant);
+  --color-emphasis: var(--color-emphasis);
+}
+
+:root {
+  --color-background: #0b1326;
+  --color-on-background: #dae2fd;
+  --color-primary: #8fa0ff;
+  --color-surface-container: #171f33;       /* Was rgba 0.45 */
+  --color-surface-container-high: #202b47;  /* Was rgba 0.65 */
+  --color-surface-container-highest: #2b395c; /* Was rgba 0.82 */
+  --color-surface-container-lowest: #0d1221;
+  --color-on-surface-variant: #9db1db;
+  --color-outline-variant: #c0c1ff;         /* Was rgba 0.16 */
+  --color-emphasis: #ffffff;
+}
+
+body.light-theme {
+  --color-background: #f1f4f9;
+  --color-on-background: #1e2640;
+  --color-primary: #3b4feb;
+  --color-surface-container: #ffffff;
+  --color-surface-container-high: #ffffff;
+  --color-surface-container-highest: #f0f3fa;
+  --color-surface-container-lowest: #f1f4f9;
+  --color-on-surface-variant: #4a5568;
+  --color-outline-variant: #1e2640;         /* For transparency */
+  --color-emphasis: #1e2640;
+  
+  background-color: #f1f4f9;
+  color: #1e2640;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-on-background);
+    font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+.glass-panel {
+  background-color: color-mix(in srgb, var(--color-surface-container) 50%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--color-outline-variant) 15%, transparent);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel:hover {
+  background-color: color-mix(in srgb, var(--color-surface-container-high) 70%, transparent);
+  border-color: color-mix(in srgb, var(--color-outline-variant) 25%, transparent);
+}
+
+/* Custom premium scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-outline-variant);
+  border-radius: 9999px;
+  transition: background 0.3s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+  opacity: 0.6;
+}
+
+/* Uniform calendar design support */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) sepia(100%) hue-rotate(185deg) saturate(1005%) brightness(105%);
+  cursor: pointer;
+}
+
+body.light-theme input[type="date"]::-webkit-calendar-picker-indicator,
+body.light-theme input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0) opacity(0.65);
+}
+
+/* Base custom classes to support color emphasis in component files safely */
+.text-emphasis {
+  color: var(--color-emphasis);
+}
+
+.hover\:text-emphasis:hover {
+  color: var(--color-emphasis);
+}
+
+.border-outline-emphasis {
+  border-color: var(--color-outline-variant);
+}
+
+.placeholder-emphasis::placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+}

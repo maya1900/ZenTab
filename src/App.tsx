@@ -52,8 +52,8 @@ const INITIAL_SETTINGS: UserSettings = {
   layout: 'grid',
   darkMode: true,
   currentIntent: '',
-  theme: 'system',
-  language: 'zh'
+  theme: 'dark',
+  language: 'en'
 };
 
 export default function App() {

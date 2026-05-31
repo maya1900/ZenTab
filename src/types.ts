@@ -41,6 +41,8 @@ export interface UserSettings {
   theme: 'dark' | 'light' | 'system';
   language: 'zh' | 'en';
   currentIntent: string;
+  tabsAutoExpand: boolean; // Auto-expand tab groups by default
+  defaultTab: 'home' | 'dashboard' | 'tasks' | 'tabs'; // Which view to land on when a new tab opens
 }
 
 export const DEFAULT_QUICK_LINKS: QuickLink[] = [
@@ -101,4 +103,42 @@ export const QUOTES_LIST: Quote[] = [
   { text: "The presentation of secrets in silence is the foundation of elegance.", author: "Zen Wisdom" },
   { text: "Adopt the pace of nature: her secret is patience.", author: "Ralph Waldo Emerson" },
   { text: "Do not seek to follow in the footsteps of the wise. Seek what they sought.", author: "Basho" }
+];
+
+// Tab Management Types
+export interface BrowserTab {
+  id: number;
+  title: string;
+  url: string;
+  favIconUrl?: string;
+  windowId: number;
+  active: boolean;
+  pinned: boolean;
+}
+
+export interface TabGroup {
+  id: string;
+  name: string;
+  domain?: string; // for auto-grouped tabs
+  iconName?: string;
+  color?: string;
+  tabs: BrowserTab[];
+  isManual: boolean; // true if user created, false if auto-generated
+  collapsed?: boolean;
+}
+
+export interface ReadLaterItem {
+  id: string;
+  title: string;
+  url: string;
+  favIconUrl?: string;
+  addedAt: number; // timestamp
+  tags?: string[];
+  notes?: string;
+}
+
+export const HOMEPAGE_PATTERNS = [
+  /^https?:\/\/[^\/]+\/?$/,
+  /^https?:\/\/[^\/]+\/?(index|home|welcome)\.(html?|php|aspx?)$/i,
+  /^https?:\/\/www\.[^\/]+\/?$/
 ];

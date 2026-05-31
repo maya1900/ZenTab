@@ -43,7 +43,9 @@ import {
   CloudRain,
   Folder,
   FolderOpen,
-  FolderPlus
+  FolderPlus,
+  ExternalLink,
+  Layers
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -90,7 +92,9 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   CloudRain,
   Folder,
   FolderOpen,
-  FolderPlus
+  FolderPlus,
+  ExternalLink,
+  Layers
 };
 
 interface LucideIconProps {

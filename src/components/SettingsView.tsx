@@ -21,6 +21,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isConfirmingReset, setIsConfirmingReset] = useState(false);
 
   const t = translations[settings.language || 'en'];
+  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
   // Handle custom backdrop url submit
   const handleCustomBgSubmit = (e: React.FormEvent) => {
@@ -548,7 +549,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                   <div className="flex justify-between text-on-surface-variant">
                     <span className="opacity-60">{t.versionTitle}</span>
-                    <span className="text-emphasis font-semibold pr-1">{t.versionNumber}</span>
+                    <span className="text-emphasis font-semibold pr-1">{appVersion}</span>
                   </div>
                 </div>
               </div>

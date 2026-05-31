@@ -1,0 +1,83 @@
+name: Chrome Web Store Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_target:
+        description: Upload only or request public publish
+        required: true
+        default: public
+        type: choice
+        options:
+          - public
+          - upload-only
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  release:
+    name: Build and release extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bump patch version
+        id: version
+        run: |
+          VERSION=$(node scripts/sync-version.mjs patch)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Released version will be v$VERSION"
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Validate extension package
+        run: npm run extension:validate
+
+      - name: Package extension
+        run: npm run extension:package
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zentab-v${{ steps.version.outputs.version }}
+          path: release/zentab-v${{ steps.version.outputs.version }}.zip
+          if-no-files-found: error
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json public/manifest.json
+          git commit -m "chore: release v${{ steps.version.outputs.version }}"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin main --follow-tags
+
+      - name: Upload to Chrome Web Store
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: npm run extension:publish -- "release/zentab-v${{ steps.version.outputs.version }}.zip" "${{ inputs.publish_target }}"

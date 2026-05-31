@@ -147,6 +147,8 @@ export const translations = {
     languageOption: "Language",
     tabsAutoExpandLabel: "Tab Groups Auto Expand",
     tabsAutoExpandDesc: "Expand all tab groups by default",
+    autoApplyUpdatesLabel: "Auto-apply Extension Updates",
+    autoApplyUpdatesDesc: "Apply ZenTab updates automatically when Chrome has downloaded them. Turning this off does not block Chrome Web Store updates.",
     defaultTabLabel: "Default Tab on Open",
     defaultTabDesc: "Which view to land on when a new tab opens",
 
@@ -334,6 +336,8 @@ export const translations = {
     languageOption: "语言选择",
     tabsAutoExpandLabel: "标签页分组自动展开",
     tabsAutoExpandDesc: "默认展开所有标签页分组",
+    autoApplyUpdatesLabel: "自动应用扩展更新",
+    autoApplyUpdatesDesc: "当 Chrome 已下载 ZenTab 更新时自动应用。关闭此项不会阻止 Chrome 网上应用店更新扩展。",
     defaultTabLabel: "默认打开页面",
     defaultTabDesc: "打开新标签页时默认停留的页面",
 

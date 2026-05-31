@@ -483,6 +483,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               </div>
 
+              {/* Extension Update Option */}
+              <div className="space-y-3">
+                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
+                  {t.autoApplyUpdatesLabel}
+                </label>
+                <div className="flex items-center justify-between gap-4 p-3 rounded-lg border border-outline-variant/15 bg-surface-container/20">
+                  <span className="text-sm text-on-surface font-medium leading-relaxed">{t.autoApplyUpdatesDesc}</span>
+                  <button
+                    onClick={() => updateSettings('autoApplyUpdates', !settings.autoApplyUpdates)}
+                    className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
+                      settings.autoApplyUpdates ? 'bg-primary' : 'bg-outline-variant/30'
+                    }`}
+                  >
+                    <motion.div
+                      animate={{ x: settings.autoApplyUpdates ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md"
+                    />
+                  </button>
+                </div>
+              </div>
+
               {/* Divider lines */}
               <div className="h-px bg-outline-variant/10 my-4" />
 

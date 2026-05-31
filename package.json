@@ -7,8 +7,13 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "clean": "rm -rf dist server.js release",
+    "lint": "tsc --noEmit",
+    "version:sync": "node scripts/sync-version.mjs",
+    "extension:validate": "node scripts/validate-extension.mjs",
+    "extension:package": "node scripts/package-extension.mjs",
+    "extension:publish": "node scripts/publish-chrome-web-store.mjs",
+    "release:local": "npm run lint && npm run build && npm run extension:validate && npm run extension:package"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -29,6 +34,7 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
+    "archiver": "^7.0.1",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "sharp": "^0.34.5",

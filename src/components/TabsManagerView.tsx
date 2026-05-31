@@ -314,10 +314,18 @@ export function TabsManagerView({ settings, updateSettings }: TabsManagerViewPro
     }
   };
 
-  // Open a stored (snapshot) tab from a manual workspace by URL
+  // Open a stored (snapshot) tab from a manual workspace by URL.
+  // If the URL is already open, focus that existing tab instead of creating duplicates.
   const openStoredTab = async (url: string) => {
     if (typeof chrome !== 'undefined' && chrome.tabs) {
       try {
+        const openTabs = await chrome.tabs.query({ url });
+        const existingTab = openTabs.find(tab => tab.id !== undefined);
+        if (existingTab?.id !== undefined) {
+          await openTab(existingTab.id);
+          return;
+        }
+
         await chrome.tabs.create({ url });
       } catch (error) {
         console.error('Failed to open stored tab:', error);

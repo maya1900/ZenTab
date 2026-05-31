@@ -1527,6 +1527,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         else if (hostname.includes('onedrive')) icon = 'Cloud';
                         else if (hostname.includes('evernote')) icon = 'BookOpen';
                         else if (hostname.includes('obsidian')) icon = 'BookOpen';
+                        else if (hostname.includes('blog')) icon = 'BookOpen';
 
                         // 邮件/日历
                         else if (hostname.includes('gmail') || hostname.includes('mail.google')) icon = 'Mail';

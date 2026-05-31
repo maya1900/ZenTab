@@ -107,11 +107,11 @@ export const LucideIcon: React.FC<LucideIconProps> = ({ name, className = '', si
     const handleError = () => {
       // 降级方案：依次尝试其他 favicon 服务
       if (imgSrc.includes('google.com')) {
-        // 方案2: 使用网站自己的 favicon
+        // 方案2: 使用阿里巴巴 iconfont 图标服务（国内可访问）
+        setImgSrc(`https://api.iowen.cn/favicon/${domain}.png`);
+      } else if (imgSrc.includes('iowen.cn')) {
+        // 方案3: 使用网站自己的 favicon
         setImgSrc(`https://${domain}/favicon.ico`);
-      } else if (imgSrc.includes(domain + '/favicon.ico')) {
-        // 方案3: 使用 DuckDuckGo 的图标服务（无需翻墙）
-        setImgSrc(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
       } else {
         // 最终降级：显示默认链接图标
         setImgSrc('');
@@ -125,14 +125,31 @@ export const LucideIcon: React.FC<LucideIconProps> = ({ name, className = '', si
     }
 
     return (
-      <img
-        src={imgSrc}
-        alt="Favicon"
-        draggable={false}
-        onError={handleError}
-        style={{ width: size, height: size }}
-        className={`object-contain ${className}`}
-      />
+      <div
+        style={{
+          width: size,
+          height: size,
+          minWidth: size,
+          minHeight: size,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden'
+        }}
+        className={className}
+      >
+        <img
+          src={imgSrc}
+          alt="Favicon"
+          draggable={false}
+          onError={handleError}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain'
+          }}
+        />
+      </div>
     );
   }
 

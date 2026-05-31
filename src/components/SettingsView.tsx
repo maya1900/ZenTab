@@ -426,6 +426,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {/* Divider lines */}
               <div className="h-px bg-outline-variant/10 my-4" />
 
+              {/* Default Tab on Open */}
+              <div className="space-y-3">
+                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
+                  {t.defaultTabLabel}
+                </label>
+                <p className="text-xs text-on-surface-variant/60 font-sans -mt-1">
+                  {t.defaultTabDesc}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { key: 'home', label: t.home, icon: 'Home' },
+                    { key: 'dashboard', label: t.dashboard, icon: 'Timer' },
+                    { key: 'tasks', label: t.tasks, icon: 'CheckSquare' },
+                    { key: 'tabs', label: t.tabsManager, icon: 'Layers' }
+                  ].map((opt) => {
+                    const isSelected = settings.defaultTab === opt.key;
+                    return (
+                      <div
+                        key={opt.key}
+                        onClick={() => updateSettings('defaultTab', opt.key as any)}
+                        className={`p-3 rounded-lg border text-center select-none text-xs font-semibold cursor-pointer font-sans transition-all flex flex-col items-center justify-center gap-1.5 min-h-[60px] ${
+                          isSelected
+                            ? 'border-primary text-primary bg-primary/5'
+                            : 'border-outline-variant/15 text-on-surface-variant hover:border-primary/50'
+                        }`}
+                      >
+                        <LucideIcon name={opt.icon} size={18} />
+                        {opt.label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tabs Auto Expand Option */}
+              <div className="space-y-3">
+                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
+                  {t.tabsAutoExpandLabel}
+                </label>
+                <div className="flex items-center justify-between p-3 rounded-lg border border-outline-variant/15 bg-surface-container/20">
+                  <span className="text-sm text-on-surface font-medium">{t.tabsAutoExpandDesc}</span>
+                  <button
+                    onClick={() => updateSettings('tabsAutoExpand', !settings.tabsAutoExpand)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      settings.tabsAutoExpand ? 'bg-primary' : 'bg-outline-variant/30'
+                    }`}
+                  >
+                    <motion.div
+                      animate={{ x: settings.tabsAutoExpand ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md"
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider lines */}
+              <div className="h-px bg-outline-variant/10 my-4" />
+
               {/* Font Scale slider */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center select-none">

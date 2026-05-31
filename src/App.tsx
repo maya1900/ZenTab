@@ -5,6 +5,7 @@ import { HomeView } from './components/HomeView';
 import { DashboardView } from './components/DashboardView';
 import { TasksView } from './components/TasksView';
 import { SettingsView } from './components/SettingsView';
+import { TabsManagerView } from './components/TabsManagerView';
 import {
   Task,
   NexusItem,
@@ -53,12 +54,27 @@ const INITIAL_SETTINGS: UserSettings = {
   darkMode: true,
   currentIntent: '',
   theme: 'dark',
-  language: 'en'
+  language: 'en',
+  tabsAutoExpand: true,
+  defaultTab: 'home'
 };
 
 export default function App() {
-  // Navigation tabs state
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'tasks' | 'settings'>('home');
+  // Navigation tabs state — initial view honors the user's saved "default tab" preference
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'tasks' | 'tabs' | 'settings'>(() => {
+    const saved = localStorage.getItem('zentab_settings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (['home', 'dashboard', 'tasks', 'tabs'].includes(parsed.defaultTab)) {
+          return parsed.defaultTab;
+        }
+      } catch (e) {
+        // fall through to default
+      }
+    }
+    return 'home';
+  });
 
   // Persistence triggers
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -259,13 +275,27 @@ export default function App() {
           <button
             onClick={() => setActiveTab('tasks')}
             className={`font-sans text-sm tracking-wide font-medium pb-1.5 transition-all cursor-pointer relative ${
-              activeTab === 'tasks' 
-              ? 'text-primary' 
+              activeTab === 'tasks'
+              ? 'text-primary'
               : 'text-on-surface-variant hover:text-emphasis'
             }`}
           >
             {t.tasks}
             {activeTab === 'tasks' && (
+              <motion.div layoutId="nav-pill" className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('tabs')}
+            className={`font-sans text-sm tracking-wide font-medium pb-1.5 transition-all cursor-pointer relative ${
+              activeTab === 'tabs'
+              ? 'text-primary'
+              : 'text-on-surface-variant hover:text-emphasis'
+            }`}
+          >
+            {t.tabsManager}
+            {activeTab === 'tabs' && (
               <motion.div layoutId="nav-pill" className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
             )}
           </button>
@@ -359,12 +389,25 @@ export default function App() {
                 transition={{ duration: 0.5 }}
                 className="w-full"
               >
-                <TasksView 
-                  tasks={tasks} 
-                  setTasks={setTasks} 
-                  settings={settings} 
-                  updateSettings={updateSettings} 
+                <TasksView
+                  tasks={tasks}
+                  setTasks={setTasks}
+                  settings={settings}
+                  updateSettings={updateSettings}
                 />
+              </motion.div>
+            )}
+
+            {activeTab === 'tabs' && (
+              <motion.div
+                key="tabs-tab"
+                initial={{ opacity: 0, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, filter: 'blur(10px)' }}
+                transition={{ duration: 0.5 }}
+                className="w-full"
+              >
+                <TabsManagerView settings={settings} updateSettings={updateSettings} />
               </motion.div>
             )}
 
@@ -415,7 +458,7 @@ export default function App() {
         </button>
 
         {/* Toggle 3: Daily checkists */}
-        <button 
+        <button
           onClick={() => setActiveTab('tasks')}
           className={`flex flex-col items-center justify-center p-2.5 transition-all cursor-pointer ${
             activeTab === 'tasks' ? 'text-primary scale-105 font-semibold' : 'text-on-surface-variant'
@@ -425,7 +468,18 @@ export default function App() {
           <span className="text-[10px] uppercase font-sans mt-1">{t.tasks}</span>
         </button>
 
-        {/* Toggle 4: Settings config */}
+        {/* Toggle 4: Tabs Manager */}
+        <button
+          onClick={() => setActiveTab('tabs')}
+          className={`flex flex-col items-center justify-center p-2.5 transition-all cursor-pointer ${
+            activeTab === 'tabs' ? 'text-primary scale-105 font-semibold' : 'text-on-surface-variant'
+          }`}
+        >
+          <LucideIcon name="Layers" size={18} />
+          <span className="text-[10px] uppercase font-sans mt-1">{t.tabsManager}</span>
+        </button>
+
+        {/* Toggle 5: Settings config */}
         <button 
           onClick={() => setActiveTab('settings')}
           className={`flex flex-col items-center justify-center p-2.5 transition-all cursor-pointer ${

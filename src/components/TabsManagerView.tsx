@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LucideIcon } from './LucideIcon';
 import { BrowserTab, TabGroup, ReadLaterItem, HOMEPAGE_PATTERNS, UserSettings } from '../types';
 import { translations } from '../translations';
+import { getStoredValue, setStoredValue, STORAGE_KEYS } from '../storage';
 
 interface TabsManagerViewProps {
   settings: UserSettings;
@@ -46,36 +47,41 @@ export function TabsManagerView({ settings, updateSettings }: TabsManagerViewPro
     }
   }, []);
 
-  // Load manual groups and read later items from localStorage
-  useEffect(() => {
-    const savedManualGroups = localStorage.getItem('zentab_manual_groups');
-    if (savedManualGroups) {
-      try {
-        setManualGroups(JSON.parse(savedManualGroups));
-      } catch (e) {
-        console.error('Failed to load manual groups', e);
-      }
-    }
+  const [storageLoaded, setStorageLoaded] = useState(false);
 
-    const savedReadLater = localStorage.getItem('zentab_read_later');
-    if (savedReadLater) {
-      try {
-        setReadLaterItems(JSON.parse(savedReadLater));
-      } catch (e) {
-        console.error('Failed to load read later items', e);
-      }
-    }
+  // Load manual groups and read later items from persistent extension storage
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadStoredTabsData = async () => {
+      const [storedManualGroups, storedReadLater] = await Promise.all([
+        getStoredValue<TabGroup[]>(STORAGE_KEYS.manualGroups, []),
+        getStoredValue<ReadLaterItem[]>(STORAGE_KEYS.readLater, [])
+      ]);
+
+      if (cancelled) return;
+
+      setManualGroups(storedManualGroups);
+      setReadLaterItems(storedReadLater);
+      setStorageLoaded(true);
+    };
+
+    loadStoredTabsData();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Save manual groups to localStorage
+  // Save manual groups to persistent extension storage
   useEffect(() => {
-    localStorage.setItem('zentab_manual_groups', JSON.stringify(manualGroups));
-  }, [manualGroups]);
+    if (storageLoaded) setStoredValue(STORAGE_KEYS.manualGroups, manualGroups);
+  }, [manualGroups, storageLoaded]);
 
-  // Save read later items to localStorage
+  // Save read later items to persistent extension storage
   useEffect(() => {
-    localStorage.setItem('zentab_read_later', JSON.stringify(readLaterItems));
-  }, [readLaterItems]);
+    if (storageLoaded) setStoredValue(STORAGE_KEYS.readLater, readLaterItems);
+  }, [readLaterItems, storageLoaded]);
 
   // Fetch browser tabs
   useEffect(() => {

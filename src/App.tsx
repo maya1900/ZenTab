@@ -15,6 +15,7 @@ import {
   BACKGROUND_PRESETS
 } from './types';
 import { translations } from './translations';
+import { getStoredValue, setStoredValue, STORAGE_KEYS } from './storage';
 
 // Pre-populate tasks matching the pristine screenshots
 const INITIAL_TASKS_PRESET: Task[] = [
@@ -60,74 +61,61 @@ const INITIAL_SETTINGS: UserSettings = {
 };
 
 export default function App() {
+  const [storageLoaded, setStorageLoaded] = useState(false);
+
   // Navigation tabs state — initial view honors the user's saved "default tab" preference
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'tasks' | 'tabs' | 'settings'>(() => {
-    const saved = localStorage.getItem('zentab_settings');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (['home', 'dashboard', 'tasks', 'tabs'].includes(parsed.defaultTab)) {
-          return parsed.defaultTab;
-        }
-      } catch (e) {
-        // fall through to default
-      }
-    }
-    return 'home';
-  });
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'tasks' | 'tabs' | 'settings'>('home');
 
   // Persistence triggers
-  const [settings, setSettings] = useState<UserSettings>(() => {
-    const saved = localStorage.getItem('zentab_settings');
-    if (saved) {
-      try {
-        return { ...INITIAL_SETTINGS, ...JSON.parse(saved) };
-      } catch (e) {
-        return INITIAL_SETTINGS;
-      }
-    }
-    return INITIAL_SETTINGS;
-  });
+  const [settings, setSettings] = useState<UserSettings>(INITIAL_SETTINGS);
+  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS_PRESET);
+  const [quickLinks, setQuickLinks] = useState<NexusItem[]>(DEFAULT_QUICK_LINKS);
 
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('zentab_tasks');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return INITIAL_TASKS_PRESET;
-      }
-    }
-    return INITIAL_TASKS_PRESET;
-  });
+  useEffect(() => {
+    let cancelled = false;
 
-  const [quickLinks, setQuickLinks] = useState<NexusItem[]>(() => {
-    const saved = localStorage.getItem('zentab_links');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return DEFAULT_QUICK_LINKS;
+    const loadStoredData = async () => {
+      const [storedSettings, storedTasks, storedQuickLinks] = await Promise.all([
+        getStoredValue<UserSettings>(STORAGE_KEYS.settings, INITIAL_SETTINGS),
+        getStoredValue<Task[]>(STORAGE_KEYS.tasks, INITIAL_TASKS_PRESET),
+        getStoredValue<NexusItem[]>(STORAGE_KEYS.quickLinks, DEFAULT_QUICK_LINKS)
+      ]);
+
+      if (cancelled) return;
+
+      const nextSettings = { ...INITIAL_SETTINGS, ...storedSettings };
+      setSettings(nextSettings);
+      setTasks(storedTasks);
+      setQuickLinks(storedQuickLinks);
+
+      if (['home', 'dashboard', 'tasks', 'tabs'].includes(nextSettings.defaultTab)) {
+        setActiveTab(nextSettings.defaultTab);
       }
-    }
-    return DEFAULT_QUICK_LINKS;
-  });
+      setStorageLoaded(true);
+    };
+
+    loadStoredData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Mouse Glow gradient coordinate variables
   const [mousePos, setMousePos] = useState({ x: '50%', y: '50%' });
 
-  // Write changes back to localStorage
+  // Write changes back to persistent extension storage
   useEffect(() => {
-    localStorage.setItem('zentab_settings', JSON.stringify(settings));
-  }, [settings]);
+    if (storageLoaded) setStoredValue(STORAGE_KEYS.settings, settings);
+  }, [settings, storageLoaded]);
 
   useEffect(() => {
-    localStorage.setItem('zentab_tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    if (storageLoaded) setStoredValue(STORAGE_KEYS.tasks, tasks);
+  }, [tasks, storageLoaded]);
 
   useEffect(() => {
-    localStorage.setItem('zentab_links', JSON.stringify(quickLinks));
-  }, [quickLinks]);
+    if (storageLoaded) setStoredValue(STORAGE_KEYS.quickLinks, quickLinks);
+  }, [quickLinks, storageLoaded]);
 
   // Track mouse coordinates for immersive spotlight effect
   useEffect(() => {

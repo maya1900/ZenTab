@@ -12,6 +12,7 @@
     "newtab": "index.html"
   },
   "permissions": [
-    "tabs"
+    "tabs",
+    "storage"
   ]
 }

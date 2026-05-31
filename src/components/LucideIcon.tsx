@@ -102,11 +102,34 @@ interface LucideIconProps {
 export const LucideIcon: React.FC<LucideIconProps> = ({ name, className = '', size = 20 }) => {
   if (name.startsWith('favicon:')) {
     const domain = name.split(':')[1];
+    const [imgSrc, setImgSrc] = React.useState(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+
+    const handleError = () => {
+      // 降级方案：依次尝试其他 favicon 服务
+      if (imgSrc.includes('google.com')) {
+        // 方案2: 使用网站自己的 favicon
+        setImgSrc(`https://${domain}/favicon.ico`);
+      } else if (imgSrc.includes(domain + '/favicon.ico')) {
+        // 方案3: 使用 DuckDuckGo 的图标服务（无需翻墙）
+        setImgSrc(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
+      } else {
+        // 最终降级：显示默认链接图标
+        setImgSrc('');
+      }
+    };
+
+    if (!imgSrc) {
+      // 如果所有方案都失败，显示默认图标
+      const IconComponent = Link2;
+      return <IconComponent className={className} size={size} />;
+    }
+
     return (
       <img
-        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=128`}
+        src={imgSrc}
         alt="Favicon"
         draggable={false}
+        onError={handleError}
         style={{ width: size, height: size }}
         className={`object-contain ${className}`}
       />

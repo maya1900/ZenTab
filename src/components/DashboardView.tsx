@@ -1467,7 +1467,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 />
               </div>
 
-              <div className="md:col-span-5 space-y-1.5 text-left">
+              <div className="md:col-span-4 space-y-1.5 text-left">
                 <label className="text-[10px] text-on-surface-variant/50 uppercase font-sans tracking-wider">{t.shortcutUrl}</label>
                 <input
                   type="text"
@@ -1484,21 +1484,84 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         const url = new URL(input.startsWith('http') ? input : `https://${input}`);
                         const hostname = url.hostname.replace(/^www\./, '');
                         if (!hostname) return null;
-                        
+
                         let name = hostname.split('.')[0];
                         if (name) name = name.charAt(0).toUpperCase() + name.slice(1);
-                        
+
+                        // 智能图标匹配：常用网站用 Lucide 图标，其他用 favicon
                         let icon = `favicon:${hostname}`;
+
+                        // 社交媒体
                         if (hostname.includes('github')) icon = 'Github';
+                        else if (hostname.includes('twitter') || hostname.includes('x.com')) icon = 'Twitter';
+                        else if (hostname.includes('linkedin')) icon = 'Linkedin';
+                        else if (hostname.includes('facebook')) icon = 'Facebook';
+                        else if (hostname.includes('instagram')) icon = 'Instagram';
+                        else if (hostname.includes('reddit')) icon = 'MessageCircle';
+                        else if (hostname.includes('discord')) icon = 'MessageSquare';
+                        else if (hostname.includes('slack')) icon = 'MessageSquare';
+                        else if (hostname.includes('telegram')) icon = 'Send';
+
+                        // 视频/音乐
                         else if (hostname.includes('youtube') || hostname.includes('youtu.be')) icon = 'Youtube';
-                        else if (hostname.includes('mail') || hostname.includes('gmail')) icon = 'Mail';
-                        else if (hostname.includes('music') || hostname.includes('spotify')) icon = 'Music';
-                        else if (hostname.includes('amazon') || hostname.includes('taobao') || hostname.includes('shop') || hostname.includes('ebay')) icon = 'ShoppingBag';
-                        else if (hostname.includes('chat') || hostname.includes('discord') || hostname.includes('slack') || hostname.includes('twitter') || hostname.includes('x.com')) icon = 'MessageSquare';
-                        else if (hostname.includes('doc') || hostname.includes('notion') || hostname.includes('wiki')) icon = 'BookOpen';
-                        else if (hostname.includes('dev') || hostname.includes('code') || hostname.includes('stack')) icon = 'Code';
-                        else if (hostname.includes('calendar') || hostname.includes('meet')) icon = 'Calendar';
-                        else if (hostname.includes('figma') || hostname.includes('design')) icon = 'PenTool';
+                        else if (hostname.includes('spotify')) icon = 'Music';
+                        else if (hostname.includes('soundcloud')) icon = 'Music';
+                        else if (hostname.includes('twitch')) icon = 'Tv';
+                        else if (hostname.includes('netflix')) icon = 'Tv';
+
+                        // 开发工具
+                        else if (hostname.includes('stackoverflow') || hostname.includes('stackexchange')) icon = 'Code';
+                        else if (hostname.includes('gitlab')) icon = 'GitBranch';
+                        else if (hostname.includes('bitbucket')) icon = 'GitBranch';
+                        else if (hostname.includes('figma')) icon = 'Figma';
+                        else if (hostname.includes('notion')) icon = 'BookOpen';
+                        else if (hostname.includes('confluence')) icon = 'BookOpen';
+                        else if (hostname.includes('jira')) icon = 'ListTodo';
+                        else if (hostname.includes('trello')) icon = 'Trello';
+                        else if (hostname.includes('asana')) icon = 'CheckSquare';
+                        else if (hostname.includes('linear')) icon = 'Zap';
+
+                        // 文档/笔记
+                        else if (hostname.includes('docs.google') || hostname.includes('drive.google')) icon = 'FileText';
+                        else if (hostname.includes('dropbox')) icon = 'Cloud';
+                        else if (hostname.includes('onedrive')) icon = 'Cloud';
+                        else if (hostname.includes('evernote')) icon = 'BookOpen';
+                        else if (hostname.includes('obsidian')) icon = 'BookOpen';
+
+                        // 邮件/日历
+                        else if (hostname.includes('gmail') || hostname.includes('mail.google')) icon = 'Mail';
+                        else if (hostname.includes('outlook')) icon = 'Mail';
+                        else if (hostname.includes('calendar.google')) icon = 'Calendar';
+                        else if (hostname.includes('meet.google') || hostname.includes('zoom')) icon = 'Video';
+
+                        // 电商
+                        else if (hostname.includes('amazon')) icon = 'ShoppingBag';
+                        else if (hostname.includes('ebay')) icon = 'ShoppingCart';
+                        else if (hostname.includes('taobao') || hostname.includes('tmall')) icon = 'ShoppingBag';
+                        else if (hostname.includes('jd.com')) icon = 'ShoppingCart';
+
+                        // 搜索引擎
+                        else if (hostname.includes('google.com') && !hostname.includes('mail') && !hostname.includes('drive') && !hostname.includes('docs')) icon = 'Search';
+                        else if (hostname.includes('bing.com')) icon = 'Search';
+                        else if (hostname.includes('baidu.com')) icon = 'Search';
+                        else if (hostname.includes('duckduckgo')) icon = 'Search';
+
+                        // 设计/创意
+                        else if (hostname.includes('behance')) icon = 'Palette';
+                        else if (hostname.includes('dribbble')) icon = 'Palette';
+                        else if (hostname.includes('pinterest')) icon = 'Image';
+                        else if (hostname.includes('unsplash') || hostname.includes('pexels')) icon = 'Camera';
+
+                        // 学习/教育
+                        else if (hostname.includes('coursera') || hostname.includes('udemy') || hostname.includes('edx')) icon = 'GraduationCap';
+                        else if (hostname.includes('wikipedia')) icon = 'BookOpen';
+                        else if (hostname.includes('medium')) icon = 'BookOpen';
+
+                        // 其他常用
+                        else if (hostname.includes('paypal')) icon = 'CreditCard';
+                        else if (hostname.includes('stripe')) icon = 'CreditCard';
+                        else if (hostname.includes('chatgpt') || hostname.includes('openai')) icon = 'Bot';
+                        else if (hostname.includes('claude') || hostname.includes('anthropic')) icon = 'Bot';
 
                         return { name, icon };
                       } catch {
@@ -1510,10 +1573,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     const newRecognized = recognizeUrl(newUrl);
 
                     if (newRecognized) {
+                      // 自动更新名称（如果名称为空或匹配旧的识别名称）
                       if (!linkInputName || (oldRecognized && linkInputName === oldRecognized.name)) {
                         setLinkInputName(newRecognized.name);
                       }
-                      // Auto-update icon only if it was the default Link2, or if it matched the previous recognized icon
+                      // 自动更新图标（始终跟随 URL 变化）
                       if (linkInputIcon === 'Link2' || (oldRecognized && linkInputIcon === oldRecognized.icon) || linkInputIcon.startsWith('favicon:')) {
                         setLinkInputIcon(newRecognized.icon);
                       }
@@ -1531,9 +1595,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onChange={(e) => setLinkInputIcon(e.target.value)}
                   className="w-full text-sm bg-surface-container border border-outline-variant/20 rounded-lg py-2 px-1 focus:outline-none focus:ring-1 focus:ring-primary/45 text-emphasis"
                 >
-                  {linkInputIcon.startsWith('favicon:') && (
-                    <option value={linkInputIcon}>Website Icon</option>
-                  )}
+                  {(() => {
+                    const url = linkInputUrl.trim();
+                    if (url) {
+                      try {
+                        const parsedUrl = new URL(url.startsWith('http') ? url : `https://${url}`);
+                        const hostname = parsedUrl.hostname.replace(/^www\./, '');
+                        const faviconValue = `favicon:${hostname}`;
+                        return <option value={faviconValue}>Website Icon</option>;
+                      } catch {
+                        return <option value="favicon:" disabled>Website Icon (enter URL first)</option>;
+                      }
+                    }
+                    return <option value="favicon:" disabled>Website Icon (enter URL first)</option>;
+                  })()}
                   {AVAILABLE_LINK_ICONS.map((ic) => (
                     <option key={ic} value={ic}>
                       {ic}

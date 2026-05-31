@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ZenTab",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A minimal, aesthetic browser new tab page to help you focus and find peace.",
   "icons": {
     "16": "icon16.png",

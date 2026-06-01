@@ -2,6 +2,12 @@
 
 ZenTab 使用 GitHub Actions 自动构建、打包并发布 Chrome Web Store 新版本。
 
+Chrome Web Store 页面：
+
+```text
+https://chromewebstore.google.com/detail/zentab/podnhfddiedpalpoelnjdgflpnhclepp
+```
+
 ## GitHub Secrets
 
 在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 中添加：
@@ -35,6 +41,7 @@ https://www.googleapis.com/auth/chromewebstore
    - 生成 `release/zentab-v<version>.zip`。
    - 上传 zip 到 GitHub Actions artifact。
    - 提交版本更新并创建 `v<version>` tag。
+   - 创建 GitHub Release，并把 zip 作为 release 附件上传到仓库右侧的 **Releases** 区块。
    - 上传到 Chrome Web Store。
    - 如果选择 `public`，请求公开发布。
 
@@ -42,9 +49,9 @@ Chrome Web Store 仍可能需要审核；自动化不会绕过审核。
 
 ## 已安装扩展的更新检测
 
-Chrome Web Store 安装的 ZenTab 会由 Chrome 自动更新。包含后台更新检测能力的版本发布后，ZenTab 还会通过 MV3 background service worker 定期主动请求更新检查，并根据设置里的“自动应用扩展更新”开关决定是否在检测到新版时自动 reload 扩展。
+Chrome Web Store 安装的 ZenTab 会由 Chrome 自动更新。包含后台更新检测能力的版本发布后，ZenTab 还会通过 MV3 background service worker 定期主动请求更新检查。
 
-注意：关闭“自动应用扩展更新”不会阻止 Chrome Web Store 更新扩展，只是不主动检查、不主动 reload。Chrome 仍可能按自己的更新周期在浏览器重启或稍后时机应用新版。
+如果检测到新版，ZenTab 会在 **个性设置 → 关于** 中展示新版本号，并把“检测更新”按钮切换为“立即更新”。点击“立即更新”会 reload 扩展并应用 Chrome 已下载的新版本。
 
 ## 本地打包验证
 

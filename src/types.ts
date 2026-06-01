@@ -43,7 +43,6 @@ export interface UserSettings {
   currentIntent: string;
   tabsAutoExpand: boolean; // Auto-expand tab groups by default
   quickLinksOpenInNewTab: boolean; // Open quick access links in a new tab
-  autoApplyUpdates: boolean; // Proactively apply Chrome Web Store updates when available
   defaultTab: 'home' | 'dashboard' | 'tasks' | 'tabs'; // Which view to land on when a new tab opens
 }
 

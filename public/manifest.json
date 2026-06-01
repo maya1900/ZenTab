@@ -3,6 +3,7 @@
   "name": "ZenTab",
   "version": "1.0.9",
   "description": "A minimal, aesthetic browser new tab page to help you focus and find peace.",
+  "homepage_url": "https://blog.haivo.bot.cd/articles/zentab",
   "icons": {
     "16": "icon16.png",
     "48": "icon48.png",
@@ -14,9 +15,5 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": [
-    "tabs",
-    "storage",
-    "alarms"
-  ]
+  "permissions": ["tabs", "storage", "alarms"]
 }

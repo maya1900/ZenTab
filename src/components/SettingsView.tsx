@@ -1,8 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LucideIcon } from './LucideIcon';
 import { UserSettings, BACKGROUND_PRESETS, Quote } from '../types';
 import { translations } from '../translations';
+
+type UpdateStatus = {
+  state: 'idle' | 'checking' | 'no_update' | 'throttled' | 'update_available' | 'error';
+  version?: string;
+  message?: string;
+  checkedAt?: number;
+};
 
 interface SettingsViewProps {
   settings: UserSettings;
@@ -19,9 +26,96 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [customBgInput, setCustomBgInput] = useState('');
   const [showCustomBgDrawer, setShowCustomBgDrawer] = useState(false);
   const [isConfirmingReset, setIsConfirmingReset] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' });
+  const [updateActionError, setUpdateActionError] = useState('');
 
   const t = translations[settings.language || 'en'];
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
+  const canUseExtensionUpdates = typeof chrome !== 'undefined' && !!chrome.runtime?.sendMessage;
+
+  const requestUpdateStatus = () => {
+    if (!canUseExtensionUpdates) return;
+
+    chrome.runtime.sendMessage({ type: 'zentab_get_update_status' }, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error || !response?.ok) return;
+      setUpdateStatus(response.status || { state: 'idle' });
+    });
+  };
+
+  useEffect(() => {
+    if (!canUseExtensionUpdates) return;
+
+    requestUpdateStatus();
+
+    const handleStorageChange = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: string
+    ) => {
+      if (areaName === 'local' && changes.zentab_update_status?.newValue) {
+        setUpdateStatus(changes.zentab_update_status.newValue as UpdateStatus);
+      }
+    };
+
+    chrome.storage?.onChanged?.addListener(handleStorageChange);
+    return () => chrome.storage?.onChanged?.removeListener(handleStorageChange);
+  }, [canUseExtensionUpdates]);
+
+  const handleUpdateAction = () => {
+    if (!canUseExtensionUpdates) return;
+
+    setUpdateActionError('');
+    const messageType = updateStatus.state === 'update_available'
+      ? 'zentab_apply_update'
+      : 'zentab_check_update';
+
+    if (messageType === 'zentab_check_update') {
+      setUpdateStatus((prev) => ({ ...prev, state: 'checking' }));
+    }
+
+    chrome.runtime.sendMessage({ type: messageType }, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error || !response?.ok) {
+        setUpdateActionError(response?.message || error?.message || t.updateError);
+        if (messageType === 'zentab_check_update') {
+          setUpdateStatus((prev) => ({ ...prev, state: 'error' }));
+        }
+        return;
+      }
+
+      if (messageType === 'zentab_check_update') {
+        requestUpdateStatus();
+      }
+    });
+  };
+
+  const updateButtonLabel = updateStatus.state === 'update_available'
+    ? t.updateNow
+    : updateStatus.state === 'checking'
+      ? t.checkingForUpdates
+      : t.checkForUpdates;
+
+  const updateStatusText = useMemo(() => {
+    if (!canUseExtensionUpdates) return t.updateUnavailableInBrowser;
+    if (updateActionError) return updateActionError;
+
+    switch (updateStatus.state) {
+      case 'checking':
+        return t.checkingForUpdates;
+      case 'update_available':
+        return updateStatus.version
+          ? `${t.updateAvailable}: v${updateStatus.version}`
+          : t.updateAvailable;
+      case 'no_update':
+        return t.upToDate;
+      case 'throttled':
+        return t.updateThrottled;
+      case 'error':
+        return updateStatus.message || t.updateError;
+      default:
+        return '';
+    }
+  }, [canUseExtensionUpdates, t, updateActionError, updateStatus]);
 
   // Handle custom backdrop url submit
   const handleCustomBgSubmit = (e: React.FormEvent) => {
@@ -505,31 +599,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               </div>
 
-              {/* Extension Update Option */}
-              <div className="space-y-3">
-                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
-                  {t.autoApplyUpdatesLabel}
-                </label>
-                <div className="flex items-center justify-between gap-4 p-3 rounded-lg border border-outline-variant/15 bg-surface-container/20">
-                  <span className="text-sm text-on-surface font-medium leading-relaxed">{t.autoApplyUpdatesDesc}</span>
-                  <button
-                    onClick={() => updateSettings('autoApplyUpdates', !settings.autoApplyUpdates)}
-                    className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
-                      settings.autoApplyUpdates ? 'bg-primary' : 'bg-outline-variant/30'
-                    }`}
-                  >
-                    <motion.div
-                      animate={{ x: settings.autoApplyUpdates ? 24 : 0 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md"
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {/* Divider lines */}
-              <div className="h-px bg-outline-variant/10 my-4" />
-
               {/* Font Scale slider */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center select-none">
@@ -594,6 +663,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="flex justify-between text-on-surface-variant">
                     <span className="opacity-60">{t.versionTitle}</span>
                     <span className="text-emphasis font-semibold pr-1">{appVersion}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-outline-variant/10 pt-5">
+                <div className="bg-white/5 rounded-xl border border-white/5 p-4 space-y-3 text-xs font-sans">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-on-surface-variant/60">{t.updateCheckTitle}</p>
+                      {updateStatusText && (
+                        <p className={`mt-1 font-medium ${
+                          updateStatus.state === 'update_available'
+                            ? 'text-primary'
+                            : updateStatus.state === 'error'
+                              ? 'text-red-400'
+                              : 'text-emphasis'
+                        }`}>
+                          {updateStatusText}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleUpdateAction}
+                      disabled={!canUseExtensionUpdates || updateStatus.state === 'checking'}
+                      className={`shrink-0 px-4 py-2 rounded-lg font-sans text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                        updateStatus.state === 'update_available'
+                          ? 'bg-primary text-on-primary hover:brightness-110'
+                          : 'bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20'
+                      } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
+                    >
+                      <LucideIcon
+                        name={updateStatus.state === 'update_available' ? 'Download' : 'RefreshCw'}
+                        size={13}
+                        className={updateStatus.state === 'checking' ? 'animate-spin' : ''}
+                      />
+                      {updateButtonLabel}
+                    </button>
                   </div>
                 </div>
               </div>

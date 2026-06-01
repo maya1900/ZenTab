@@ -58,7 +58,6 @@ const INITIAL_SETTINGS: UserSettings = {
   language: 'en',
   tabsAutoExpand: true,
   quickLinksOpenInNewTab: true,
-  autoApplyUpdates: true,
   defaultTab: 'home'
 };
 

@@ -57,6 +57,7 @@ const INITIAL_SETTINGS: UserSettings = {
   theme: 'dark',
   language: 'en',
   tabsAutoExpand: true,
+  quickLinksOpenInNewTab: true,
   autoApplyUpdates: true,
   defaultTab: 'home'
 };

@@ -892,6 +892,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setOpenFolderId(folderId);
   };
 
+  const quickLinkTarget = settings.quickLinksOpenInNewTab ? '_blank' : '_self';
+  const quickLinkRel = settings.quickLinksOpenInNewTab ? 'noopener noreferrer' : undefined;
+
   const handleRestoreDefaultLinks = () => {
     const confirmMsg = settings.language === 'zh'
       ? "确定要恢复初始通道预设吗？你的自定义通道会被保留，但缺失的默认通道会被重新添加。"
@@ -1324,8 +1327,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     /* ---- Single link tile ---- */
                     <a
                       href={isEditingLinks ? undefined : item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      target={quickLinkTarget}
+                      rel={quickLinkRel}
                       onClick={handleLinkClick}
                       className={`w-14 h-14 rounded-full bg-surface-container/40 border backdrop-blur-md flex items-center justify-center transition-all duration-300 group-hover:bg-primary group-hover:text-on-primary group-hover:shadow-[0_0_20px_rgba(192,193,255,0.4)] group-hover:border-primary/50 relative active:scale-95 ${
                         showFolderRing ? 'border-primary ring-2 ring-primary/60 scale-105' : 'border-outline-variant/10'
@@ -1711,8 +1714,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     >
                       <a
                         href={isEditingLinks ? undefined : l.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        target={quickLinkTarget}
+                        rel={quickLinkRel}
                         onClick={handleLinkClick}
                         className="w-14 h-14 rounded-full bg-surface-container/40 border border-outline-variant/10 backdrop-blur-md flex items-center justify-center transition-all duration-300 group-hover:bg-primary group-hover:shadow-[0_0_20px_rgba(192,193,255,0.4)] group-hover:border-primary/50 active:scale-95"
                       >

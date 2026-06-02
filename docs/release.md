@@ -49,9 +49,9 @@ Chrome Web Store 仍可能需要审核；自动化不会绕过审核。
 
 ## 已安装扩展的更新检测
 
-Chrome Web Store 安装的 ZenTab 会由 Chrome 自动更新。包含后台更新检测能力的版本发布后，ZenTab 还会通过 MV3 background service worker 定期主动请求更新检查。
+Chrome Web Store 安装的 ZenTab 会由 Chrome 自动更新。ZenTab 监听 Chrome 的更新可用事件，并在新版已经下载好时允许用户立即应用更新。
 
-如果检测到新版，ZenTab 会在 **个性设置 → 关于** 中展示新版本号，并把“检测更新”按钮切换为“立即更新”。点击“立即更新”会 reload 扩展并应用 Chrome 已下载的新版本。
+如果 Chrome 已发现并下载新版，ZenTab 会在 **个性设置 → 关于** 中展示新版本号，并显示“立即更新”。点击“立即更新”会 reload 扩展并应用 Chrome 已下载的新版本。
 
 ## 本地打包验证
 

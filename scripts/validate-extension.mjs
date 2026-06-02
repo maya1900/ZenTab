@@ -27,7 +27,8 @@ if (!fs.existsSync(manifestPath)) {
   if (!manifest.description) errors.push('manifest.description is required.');
   if (!manifest.chrome_url_overrides?.newtab) errors.push('manifest.chrome_url_overrides.newtab is required.');
   if (!manifest.background?.service_worker) errors.push('manifest.background.service_worker is required.');
-  if (!manifest.permissions?.includes('alarms')) errors.push('manifest.permissions must include alarms.');
+  if (!manifest.permissions?.includes('storage')) errors.push('manifest.permissions must include storage.');
+  if (manifest.permissions?.includes('alarms')) errors.push('manifest.permissions should not include alarms.');
 }
 
 for (const requiredFile of ['index.html', 'background.js', 'icon16.png', 'icon48.png', 'icon128.png']) {

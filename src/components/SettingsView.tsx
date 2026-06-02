@@ -5,7 +5,7 @@ import { UserSettings, BACKGROUND_PRESETS, Quote } from '../types';
 import { translations } from '../translations';
 
 type UpdateStatus = {
-  state: 'idle' | 'checking' | 'no_update' | 'throttled' | 'update_available' | 'error';
+  state: 'idle' | 'update_available' | 'error';
   version?: string;
   message?: string;
   checkedAt?: number;
@@ -27,7 +27,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showCustomBgDrawer, setShowCustomBgDrawer] = useState(false);
   const [isConfirmingReset, setIsConfirmingReset] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' });
-  const [updateActionError, setUpdateActionError] = useState('');
 
   const t = translations[settings.language || 'en'];
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
@@ -62,60 +61,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   }, [canUseExtensionUpdates]);
 
   const handleUpdateAction = () => {
-    if (!canUseExtensionUpdates) return;
+    if (!canUseExtensionUpdates || updateStatus.state !== 'update_available') return;
 
-    setUpdateActionError('');
-    const messageType = updateStatus.state === 'update_available'
-      ? 'zentab_apply_update'
-      : 'zentab_check_update';
-
-    if (messageType === 'zentab_check_update') {
-      setUpdateStatus((prev) => ({ ...prev, state: 'checking' }));
-    }
-
-    chrome.runtime.sendMessage({ type: messageType }, (response) => {
+    chrome.runtime.sendMessage({ type: 'zentab_apply_update' }, (response) => {
       const error = chrome.runtime.lastError;
       if (error || !response?.ok) {
-        setUpdateActionError(response?.message || error?.message || t.updateError);
-        if (messageType === 'zentab_check_update') {
-          setUpdateStatus((prev) => ({ ...prev, state: 'error' }));
-        }
+        setUpdateStatus({
+          state: 'error',
+          message: response?.message || error?.message || t.updateError
+        });
         return;
-      }
-
-      if (messageType === 'zentab_check_update') {
-        requestUpdateStatus();
       }
     });
   };
 
-  const updateButtonLabel = updateStatus.state === 'update_available'
-    ? t.updateNow
-    : updateStatus.state === 'checking'
-      ? t.checkingForUpdates
-      : t.checkForUpdates;
-
   const updateStatusText = useMemo(() => {
-    if (!canUseExtensionUpdates) return t.updateUnavailableInBrowser;
-    if (updateActionError) return updateActionError;
-
     switch (updateStatus.state) {
-      case 'checking':
-        return t.checkingForUpdates;
       case 'update_available':
         return updateStatus.version
           ? `${t.updateAvailable}: v${updateStatus.version}`
           : t.updateAvailable;
-      case 'no_update':
-        return t.upToDate;
-      case 'throttled':
-        return t.updateThrottled;
       case 'error':
         return updateStatus.message || t.updateError;
       default:
-        return '';
+        return t.updateAuto;
     }
-  }, [canUseExtensionUpdates, t, updateActionError, updateStatus]);
+  }, [t, updateStatus]);
 
   // Handle custom backdrop url submit
   const handleCustomBgSubmit = (e: React.FormEvent) => {
@@ -684,22 +655,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         </p>
                       )}
                     </div>
-                    <button
-                      onClick={handleUpdateAction}
-                      disabled={!canUseExtensionUpdates || updateStatus.state === 'checking'}
-                      className={`shrink-0 px-4 py-2 rounded-lg font-sans text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
-                        updateStatus.state === 'update_available'
-                          ? 'bg-primary text-on-primary hover:brightness-110'
-                          : 'bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20'
-                      } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
-                    >
-                      <LucideIcon
-                        name={updateStatus.state === 'update_available' ? 'Download' : 'RefreshCw'}
-                        size={13}
-                        className={updateStatus.state === 'checking' ? 'animate-spin' : ''}
-                      />
-                      {updateButtonLabel}
-                    </button>
+                    {updateStatus.state === 'update_available' && (
+                      <button
+                        onClick={handleUpdateAction}
+                        disabled={!canUseExtensionUpdates}
+                        className="shrink-0 px-4 py-2 rounded-lg font-sans text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 bg-primary text-on-primary hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <LucideIcon name="Download" size={13} />
+                        {t.updateNow}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -4,7 +4,7 @@
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E)
 ![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
-![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)
+![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-green.svg?style=for-the-badge)
 
 ZenTab 是一个极简、美观的浏览器新标签页，旨在帮助您保持专注并找到内心的宁静。它在您的浏览器中提供了一个宁静的避风港，用一个整洁、功能强大的仪表盘取代了繁杂的默认新标签页。
 
@@ -99,4 +99,4 @@ Chrome Web Store 自动发布说明见 [docs/release.md](docs/release.md)。
 
 ## 📄 许可证
 
-[MIT 协议](https://opensource.org/licenses/MIT)
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)

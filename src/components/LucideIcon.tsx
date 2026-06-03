@@ -45,7 +45,8 @@ import {
   FolderOpen,
   FolderPlus,
   ExternalLink,
-  Layers
+  Layers,
+  History
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -94,7 +95,8 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   FolderOpen,
   FolderPlus,
   ExternalLink,
-  Layers
+  Layers,
+  History
 };
 
 interface LucideIconProps {

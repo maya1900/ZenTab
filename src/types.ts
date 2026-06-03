@@ -31,9 +31,16 @@ export interface Quote {
   author: string;
 }
 
+export interface CustomSearchEngine {
+  id: string;
+  name: string;
+  urlTemplate: string;
+}
+
 export interface UserSettings {
   name: string;
-  searchEngine: 'google' | 'duckduckgo' | 'ecosia' | 'bing' | 'yahoo' | 'baidu' | 'yandex';
+  searchEngine: string;
+  customSearchEngines: CustomSearchEngine[];
   bgUrl: string;
   fontScale: number; // e.g., 100
   layout: 'minimalist' | 'grid';
@@ -44,6 +51,8 @@ export interface UserSettings {
   tabsAutoExpand: boolean; // Auto-expand tab groups by default
   quickLinksOpenInNewTab: boolean; // Open quick access links in a new tab
   defaultTab: 'home' | 'dashboard' | 'tasks' | 'tabs'; // Which view to land on when a new tab opens
+  searchHistoryEnabled: boolean; // Save and show web search history
+  searchOpenInNewTab: boolean; // Open web search results in a new tab
 }
 
 export const DEFAULT_QUICK_LINKS: QuickLink[] = [

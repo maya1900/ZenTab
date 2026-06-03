@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LucideIcon } from './LucideIcon';
 import { UserSettings, BACKGROUND_PRESETS, Quote } from '../types';
 import { translations } from '../translations';
+import { setStoredValue, STORAGE_KEYS } from '../storage';
+import { getSearchEngineOptions, isValidSearchTemplate } from '../searchEngines';
 
 type UpdateStatus = {
   state: 'idle' | 'update_available' | 'error';
@@ -10,6 +12,8 @@ type UpdateStatus = {
   message?: string;
   checkedAt?: number;
 };
+
+type GeneralSection = 'search' | 'appearance' | 'navigation' | 'tabs' | 'quickLinks';
 
 interface SettingsViewProps {
   settings: UserSettings;
@@ -23,14 +27,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   resetAllSettings
 }) => {
   const [activeTab, setActiveTab] = useState<'background' | 'general' | 'about'>('background');
+  const [activeGeneralSection, setActiveGeneralSection] = useState<GeneralSection>('search');
   const [customBgInput, setCustomBgInput] = useState('');
   const [showCustomBgDrawer, setShowCustomBgDrawer] = useState(false);
   const [isConfirmingReset, setIsConfirmingReset] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' });
+  const [customSearchName, setCustomSearchName] = useState('');
+  const [customSearchTemplate, setCustomSearchTemplate] = useState('');
+  const [customSearchError, setCustomSearchError] = useState('');
 
   const t = translations[settings.language || 'en'];
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
   const canUseExtensionUpdates = typeof chrome !== 'undefined' && !!chrome.runtime?.sendMessage;
+  const searchEngineOptions = getSearchEngineOptions(settings);
+  const generalSections: Array<{ key: GeneralSection; label: string; icon: string }> = [
+    { key: 'search', label: t.generalSearch, icon: 'Search' },
+    { key: 'appearance', label: t.generalAppearance, icon: 'Eye' },
+    { key: 'navigation', label: t.generalNavigation, icon: 'Compass' },
+    { key: 'tabs', label: t.generalTabs, icon: 'Layers' },
+    { key: 'quickLinks', label: t.generalQuickLinks, icon: 'ExternalLink' }
+  ];
 
   const requestUpdateStatus = () => {
     if (!canUseExtensionUpdates) return;
@@ -72,6 +88,52 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         });
         return;
       }
+    });
+  };
+
+  const handleClearSearchHistory = () => {
+    setStoredValue(STORAGE_KEYS.searchHistory, []);
+  };
+
+  const handleCustomSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = customSearchName.trim();
+    const urlTemplate = customSearchTemplate.trim();
+
+    if (!name || !urlTemplate) {
+      setCustomSearchError(t.customSearchRequired);
+      return;
+    }
+
+    if (!isValidSearchTemplate(urlTemplate)) {
+      setCustomSearchError(t.customSearchInvalid);
+      return;
+    }
+
+    const newEngine = {
+      id: `custom-${Date.now()}`,
+      name,
+      urlTemplate
+    };
+
+    updateSettings('customSearchEngines', (prevSettings: UserSettings) => ({
+      ...prevSettings,
+      customSearchEngines: [...(prevSettings.customSearchEngines || []), newEngine],
+      searchEngine: newEngine.id
+    }));
+    setCustomSearchName('');
+    setCustomSearchTemplate('');
+    setCustomSearchError('');
+  };
+
+  const handleDeleteCustomSearchEngine = (engineId: string) => {
+    updateSettings('customSearchEngines', (prevSettings: UserSettings) => {
+      const nextEngines = (prevSettings.customSearchEngines || []).filter((engine) => engine.id !== engineId);
+      return {
+        ...prevSettings,
+        customSearchEngines: nextEngines,
+        searchEngine: prevSettings.searchEngine === engineId ? 'google' : prevSettings.searchEngine
+      };
     });
   };
 
@@ -348,6 +410,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </p>
               </div>
 
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {generalSections.map((section) => {
+                  const isSelected = activeGeneralSection === section.key;
+                  return (
+                    <button
+                      key={section.key}
+                      type="button"
+                      onClick={() => setActiveGeneralSection(section.key)}
+                      className={`shrink-0 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold font-sans transition-all ${
+                        isSelected
+                          ? 'border-primary text-primary bg-primary/10'
+                          : 'border-outline-variant/15 text-on-surface-variant hover:text-emphasis hover:border-primary/40 bg-surface-container/10'
+                      }`}
+                    >
+                      <LucideIcon name={section.icon} size={14} />
+                      {section.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <AnimatePresence mode="wait">
+                {activeGeneralSection === 'navigation' && (
+                  <motion.div
+                    key="general-navigation"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.16 }}
+                    className="space-y-6"
+                  >
+
               {/* Bento structure presets toggle */}
               <div className="space-y-3">
                 <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
@@ -398,7 +492,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* Divider lines */}
-              <div className="h-px bg-outline-variant/10 my-4" />
+              <div className="h-px bg-outline-variant/10" />
+
+              {/* Default Tab on Open */}
+              <div className="space-y-3">
+                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
+                  {t.defaultTabLabel}
+                </label>
+                <p className="text-xs text-on-surface-variant/60 font-sans -mt-1">
+                  {t.defaultTabDesc}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { key: 'home', label: t.home, icon: 'Home' },
+                    { key: 'dashboard', label: t.dashboard, icon: 'Timer' },
+                    { key: 'tasks', label: t.tasks, icon: 'CheckSquare' },
+                    { key: 'tabs', label: t.tabsManager, icon: 'Layers' }
+                  ].map((opt) => {
+                    const isSelected = settings.defaultTab === opt.key;
+                    return (
+                      <div
+                        key={opt.key}
+                        onClick={() => updateSettings('defaultTab', opt.key as any)}
+                        className={`p-3 rounded-lg border text-center select-none text-xs font-semibold cursor-pointer font-sans transition-all flex flex-col items-center justify-center gap-1.5 min-h-[60px] ${
+                          isSelected
+                            ? 'border-primary text-primary bg-primary/5'
+                            : 'border-outline-variant/15 text-on-surface-variant hover:border-primary/50'
+                        }`}
+                      >
+                        <LucideIcon name={opt.icon} size={18} />
+                        {opt.label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+                  </motion.div>
+                )}
+
+                {activeGeneralSection === 'search' && (
+                  <motion.div
+                    key="general-search"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.16 }}
+                    className="space-y-6"
+                  >
 
               {/* Search Engines choices */}
               <div className="space-y-3">
@@ -407,27 +548,166 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </label>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {['google', 'duckduckgo', 'ecosia', 'bing', 'yahoo', 'baidu', 'yandex'].map((engine) => {
-                    const isSelected = settings.searchEngine === engine;
+                  {searchEngineOptions.map((engine) => {
+                    const isSelected = settings.searchEngine === engine.id;
                     return (
                       <div
-                        key={engine}
-                        onClick={() => updateSettings('searchEngine', engine as any)}
-                        className={`p-3 rounded-lg border text-center select-none text-xs font-semibold uppercase tracking-wider cursor-pointer font-sans transition-all ${
+                        key={engine.id}
+                        onClick={() => updateSettings('searchEngine', engine.id)}
+                        className={`p-3 rounded-lg border text-center select-none text-xs font-semibold cursor-pointer font-sans transition-all ${
                           isSelected
                             ? 'border-primary text-primary bg-primary/5'
                             : 'border-outline-variant/15 text-on-surface-variant hover:border-primary/50'
                         }`}
                       >
-                        {engine}
+                        <span className="block truncate uppercase tracking-wider">{engine.label}</span>
+                        {engine.custom && (
+                          <span className="mt-1 block text-[9px] uppercase tracking-widest text-on-surface-variant/50">
+                            {t.customSearchTag}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </div>
 
+              <div className="space-y-3 rounded-xl border border-outline-variant/15 bg-surface-container/10 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
+                    {t.customSearchTitle}
+                  </label>
+                  <span className="text-[10px] text-on-surface-variant/50 font-sans">{'{query}'}</span>
+                </div>
+                <form onSubmit={handleCustomSearchSubmit} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] gap-2">
+                  <input
+                    type="text"
+                    value={customSearchName}
+                    onChange={(e) => {
+                      setCustomSearchName(e.target.value);
+                      setCustomSearchError('');
+                    }}
+                    placeholder={t.customSearchNamePlaceholder}
+                    className="min-w-0 rounded-lg border border-outline-variant/20 bg-surface-container/40 px-3 py-2 text-sm text-emphasis placeholder:text-on-surface-variant/45 focus:outline-none focus:ring-1 focus:ring-primary/45"
+                    maxLength={28}
+                  />
+                  <input
+                    type="url"
+                    value={customSearchTemplate}
+                    onChange={(e) => {
+                      setCustomSearchTemplate(e.target.value);
+                      setCustomSearchError('');
+                    }}
+                    placeholder={t.customSearchUrlPlaceholder}
+                    className="min-w-0 rounded-lg border border-outline-variant/20 bg-surface-container/40 px-3 py-2 text-sm text-emphasis placeholder:text-on-surface-variant/45 focus:outline-none focus:ring-1 focus:ring-primary/45"
+                  />
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-on-primary transition-opacity hover:opacity-90"
+                  >
+                    <LucideIcon name="Plus" size={14} />
+                    {t.addCustomSearch}
+                  </button>
+                </form>
+                {customSearchError && (
+                  <p className="text-xs text-red-400 font-sans">{customSearchError}</p>
+                )}
+                {(settings.customSearchEngines || []).length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    {(settings.customSearchEngines || []).map((engine) => (
+                      <div
+                        key={engine.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant/10 bg-surface-container/20 px-3 py-2"
+                      >
+                        <div className="min-w-0 text-left">
+                          <p className="truncate text-sm font-semibold text-emphasis font-sans">{engine.name}</p>
+                          <p className="truncate text-xs text-on-surface-variant/55 font-mono">{engine.urlTemplate}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCustomSearchEngine(engine.id)}
+                          className="shrink-0 rounded-lg p-2 text-on-surface-variant/55 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                          title={t.deleteCustomSearch}
+                        >
+                          <LucideIcon name="Trash2" size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Divider lines */}
-              <div className="h-px bg-outline-variant/10 my-4" />
+              <div className="h-px bg-outline-variant/10" />
+
+              {/* Search Open Target Option */}
+              <div className="space-y-3">
+                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
+                  {t.searchOpenInNewTabLabel}
+                </label>
+                <div className="flex items-center justify-between gap-4 p-3 rounded-lg border border-outline-variant/15 bg-surface-container/20">
+                  <span className="text-sm text-on-surface font-medium leading-relaxed">{t.searchOpenInNewTabDesc}</span>
+                  <button
+                    onClick={() => updateSettings('searchOpenInNewTab', !settings.searchOpenInNewTab)}
+                    className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
+                      settings.searchOpenInNewTab ? 'bg-primary' : 'bg-outline-variant/30'
+                    }`}
+                  >
+                    <motion.div
+                      animate={{ x: settings.searchOpenInNewTab ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md"
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider lines */}
+              <div className="h-px bg-outline-variant/10" />
+
+              {/* Search History Option */}
+              <div className="space-y-3">
+                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
+                  {t.searchHistoryLabel}
+                </label>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-outline-variant/15 bg-surface-container/20">
+                  <div className="flex items-center justify-between gap-4 flex-1">
+                    <span className="text-sm text-on-surface font-medium leading-relaxed">{t.searchHistoryDesc}</span>
+                    <button
+                      onClick={() => updateSettings('searchHistoryEnabled', !settings.searchHistoryEnabled)}
+                      className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
+                        settings.searchHistoryEnabled ? 'bg-primary' : 'bg-outline-variant/30'
+                      }`}
+                    >
+                      <motion.div
+                        animate={{ x: settings.searchHistoryEnabled ? 24 : 0 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                        className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md"
+                      />
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleClearSearchHistory}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant/15 px-3 py-2 text-xs font-semibold text-on-surface-variant hover:text-emphasis hover:border-primary/40 transition-colors"
+                  >
+                    <LucideIcon name="Trash2" size={14} />
+                    {t.clearSearchHistory}
+                  </button>
+                </div>
+              </div>
+
+                  </motion.div>
+                )}
+
+                {activeGeneralSection === 'appearance' && (
+                  <motion.div
+                    key="general-appearance"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.16 }}
+                    className="space-y-6"
+                  >
 
               {/* Theme Mode & Language Option Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -490,85 +770,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* Divider lines */}
-              <div className="h-px bg-outline-variant/10 my-4" />
-
-              {/* Default Tab on Open */}
-              <div className="space-y-3">
-                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
-                  {t.defaultTabLabel}
-                </label>
-                <p className="text-xs text-on-surface-variant/60 font-sans -mt-1">
-                  {t.defaultTabDesc}
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[
-                    { key: 'home', label: t.home, icon: 'Home' },
-                    { key: 'dashboard', label: t.dashboard, icon: 'Timer' },
-                    { key: 'tasks', label: t.tasks, icon: 'CheckSquare' },
-                    { key: 'tabs', label: t.tabsManager, icon: 'Layers' }
-                  ].map((opt) => {
-                    const isSelected = settings.defaultTab === opt.key;
-                    return (
-                      <div
-                        key={opt.key}
-                        onClick={() => updateSettings('defaultTab', opt.key as any)}
-                        className={`p-3 rounded-lg border text-center select-none text-xs font-semibold cursor-pointer font-sans transition-all flex flex-col items-center justify-center gap-1.5 min-h-[60px] ${
-                          isSelected
-                            ? 'border-primary text-primary bg-primary/5'
-                            : 'border-outline-variant/15 text-on-surface-variant hover:border-primary/50'
-                        }`}
-                      >
-                        <LucideIcon name={opt.icon} size={18} />
-                        {opt.label}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Tabs Auto Expand Option */}
-              <div className="space-y-3">
-                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
-                  {t.tabsAutoExpandLabel}
-                </label>
-                <div className="flex items-center justify-between p-3 rounded-lg border border-outline-variant/15 bg-surface-container/20">
-                  <span className="text-sm text-on-surface font-medium">{t.tabsAutoExpandDesc}</span>
-                  <button
-                    onClick={() => updateSettings('tabsAutoExpand', !settings.tabsAutoExpand)}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${
-                      settings.tabsAutoExpand ? 'bg-primary' : 'bg-outline-variant/30'
-                    }`}
-                  >
-                    <motion.div
-                      animate={{ x: settings.tabsAutoExpand ? 24 : 0 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md"
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {/* Quick Links Open Target Option */}
-              <div className="space-y-3">
-                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
-                  {t.quickLinksOpenInNewTabLabel}
-                </label>
-                <div className="flex items-center justify-between gap-4 p-3 rounded-lg border border-outline-variant/15 bg-surface-container/20">
-                  <span className="text-sm text-on-surface font-medium leading-relaxed">{t.quickLinksOpenInNewTabDesc}</span>
-                  <button
-                    onClick={() => updateSettings('quickLinksOpenInNewTab', !settings.quickLinksOpenInNewTab)}
-                    className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
-                      settings.quickLinksOpenInNewTab ? 'bg-primary' : 'bg-outline-variant/30'
-                    }`}
-                  >
-                    <motion.div
-                      animate={{ x: settings.quickLinksOpenInNewTab ? 24 : 0 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md"
-                    />
-                  </button>
-                </div>
-              </div>
+              <div className="h-px bg-outline-variant/10" />
 
               {/* Font Scale slider */}
               <div className="space-y-3">
@@ -598,6 +800,80 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                 </div>
               </div>
+
+                  </motion.div>
+                )}
+
+                {activeGeneralSection === 'tabs' && (
+                  <motion.div
+                    key="general-tabs"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.16 }}
+                    className="space-y-6"
+                  >
+
+              {/* Tabs Auto Expand Option */}
+              <div className="space-y-3">
+                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
+                  {t.tabsAutoExpandLabel}
+                </label>
+                <div className="flex items-center justify-between p-3 rounded-lg border border-outline-variant/15 bg-surface-container/20">
+                  <span className="text-sm text-on-surface font-medium">{t.tabsAutoExpandDesc}</span>
+                  <button
+                    onClick={() => updateSettings('tabsAutoExpand', !settings.tabsAutoExpand)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      settings.tabsAutoExpand ? 'bg-primary' : 'bg-outline-variant/30'
+                    }`}
+                  >
+                    <motion.div
+                      animate={{ x: settings.tabsAutoExpand ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md"
+                    />
+                  </button>
+                </div>
+              </div>
+
+                  </motion.div>
+                )}
+
+                {activeGeneralSection === 'quickLinks' && (
+                  <motion.div
+                    key="general-quick-links"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.16 }}
+                    className="space-y-6"
+                  >
+
+              {/* Quick Links Open Target Option */}
+              <div className="space-y-3">
+                <label className="text-[10px] text-primary/80 uppercase font-sans tracking-widest block font-bold">
+                  {t.quickLinksOpenInNewTabLabel}
+                </label>
+                <div className="flex items-center justify-between gap-4 p-3 rounded-lg border border-outline-variant/15 bg-surface-container/20">
+                  <span className="text-sm text-on-surface font-medium leading-relaxed">{t.quickLinksOpenInNewTabDesc}</span>
+                  <button
+                    onClick={() => updateSettings('quickLinksOpenInNewTab', !settings.quickLinksOpenInNewTab)}
+                    className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
+                      settings.quickLinksOpenInNewTab ? 'bg-primary' : 'bg-outline-variant/30'
+                    }`}
+                  >
+                    <motion.div
+                      animate={{ x: settings.quickLinksOpenInNewTab ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md"
+                    />
+                  </button>
+                </div>
+              </div>
+
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 

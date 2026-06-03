@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LucideIcon } from './LucideIcon';
 import { UserSettings, Task } from '../types';
 import { translations } from '../translations';
+import { getStoredValue, setStoredValue, STORAGE_KEYS } from '../storage';
+import { buildSearchUrl, getSearchEngineLabel, getSearchEngineOptions } from '../searchEngines';
 
 interface HomeViewProps {
   settings: UserSettings;
@@ -17,6 +19,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
   const [isEditingName, setIsEditingName] = useState(false);
   const [inputName, setInputName] = useState(settings.name);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [intentInput, setIntentInput] = useState('');
   const [isSelectingEngine, setIsSelectingEngine] = useState(false);
 
@@ -24,6 +28,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const t = translations[settings.language || 'en'];
+  const searchEngineOptions = getSearchEngineOptions(settings);
+  const selectedSearchEngineLabel = getSearchEngineLabel(settings);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -37,6 +43,18 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isSelectingEngine]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getStoredValue<string[]>(STORAGE_KEYS.searchHistory, []).then((history) => {
+      if (isMounted) setSearchHistory(history);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Keyboard shortcut listener to focus search tool (Ctrl+K or Cmd+K)
   useEffect(() => {
@@ -81,40 +99,60 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
     setIsEditingName(false);
   };
 
+  const saveSearchHistory = (query: string) => {
+    if (!settings.searchHistoryEnabled) return;
+
+    const nextHistory = [
+      query,
+      ...searchHistory.filter((item) => item.toLowerCase() !== query.toLowerCase())
+    ].slice(0, 10);
+
+    setSearchHistory(nextHistory);
+    setStoredValue(STORAGE_KEYS.searchHistory, nextHistory);
+  };
+
+  const runSearch = (query: string) => {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) return;
+
+    saveSearchHistory(normalizedQuery);
+    const searchUrl = buildSearchUrl(settings, normalizedQuery);
+    if (settings.searchOpenInNewTab) {
+      window.open(searchUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      window.location.assign(searchUrl);
+    }
+    setSearchQuery('');
+    setIsSearchFocused(false);
+  };
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
-
-    let searchUrl = '';
-    switch (settings.searchEngine) {
-      case 'duckduckgo':
-        searchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(searchQuery)}`;
-        break;
-      case 'ecosia':
-        searchUrl = `https://ecosia.org/search?q=${encodeURIComponent(searchQuery)}`;
-        break;
-      case 'bing':
-        searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(searchQuery)}`;
-        break;
-      case 'yahoo':
-        searchUrl = `https://search.yahoo.com/search?p=${encodeURIComponent(searchQuery)}`;
-        break;
-      case 'baidu':
-        searchUrl = `https://www.baidu.com/s?wd=${encodeURIComponent(searchQuery)}`;
-        break;
-      case 'yandex':
-        searchUrl = `https://yandex.com/search/?text=${encodeURIComponent(searchQuery)}`;
-        break;
-      case 'google':
-      default:
-        searchUrl = `https://google.com/search?q=${encodeURIComponent(searchQuery)}`;
-        break;
-    }
-
-    // Redirect or open in same/new tab
-    window.open(searchUrl, '_blank', 'noopener,noreferrer');
-    setSearchQuery('');
+    runSearch(searchQuery);
   };
+
+  const handleHistoryItemClick = (query: string) => {
+    runSearch(query);
+  };
+
+  const handleRemoveHistoryItem = (query: string) => {
+    const nextHistory = searchHistory.filter((item) => item !== query);
+    setSearchHistory(nextHistory);
+    setStoredValue(STORAGE_KEYS.searchHistory, nextHistory);
+    searchInputRef.current?.focus();
+  };
+
+  const handleClearSearchHistory = () => {
+    setSearchHistory([]);
+    setStoredValue(STORAGE_KEYS.searchHistory, []);
+    searchInputRef.current?.focus();
+  };
+
+  const filteredSearchHistory = searchHistory.filter((item) =>
+    item.toLowerCase().includes(searchQuery.trim().toLowerCase())
+  );
+
+  const shouldShowSearchHistory = settings.searchHistoryEnabled && isSearchFocused && !isSelectingEngine && filteredSearchHistory.length > 0;
 
   // Toggle search engine on clicking search icon
   const handleToggleSearchEngine = (e: React.MouseEvent) => {
@@ -221,9 +259,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
         transition={{ duration: 0.6, delay: 0.2 }}
         className="w-full max-w-xl sm:max-w-2xl mb-12"
       >
-        <form 
+        <form
           onSubmit={handleSearchSubmit}
-          className="relative bg-surface-container/30 border border-outline-variant/10 backdrop-blur-xl rounded-full px-5 py-3.5 flex items-center shadow-[0_4px_30px_rgba(0,0,0,0.1)] focus-within:bg-surface-container/50 focus-within:shadow-[0_0_30px_rgba(192,193,255,0.15)] focus-within:border-primary/40 transition-all duration-500 group"
+          className="relative bg-surface-container/30 border border-outline-variant/10 backdrop-blur-xl rounded-[28px] px-5 py-3.5 flex items-center shadow-[0_4px_30px_rgba(0,0,0,0.1)] focus-within:bg-surface-container/50 focus-within:shadow-[0_0_30px_rgba(192,193,255,0.15)] focus-within:border-primary/40 transition-all duration-500 group"
         >
           {/* Search Icon Click toggles search engines dropdown */}
           <div className="relative" ref={dropdownRef}>
@@ -244,20 +282,20 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
                   transition={{ duration: 0.15 }}
                   className="absolute top-full left-0 mt-2 w-40 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-2xl py-2 z-50 backdrop-blur-3xl overflow-hidden"
                 >
-                  {['google', 'duckduckgo', 'ecosia', 'bing', 'yahoo', 'baidu', 'yandex'].map(engine => (
+                  {searchEngineOptions.map(engine => (
                     <button
                       type="button"
-                      key={engine}
+                      key={engine.id}
                       onClick={() => {
-                        updateSettings('searchEngine', engine);
+                        updateSettings('searchEngine', engine.id);
                         setIsSelectingEngine(false);
                         searchInputRef.current?.focus();
                       }}
                       className={`w-full text-left px-4 py-2 text-sm font-sans flex items-center hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${
-                        settings.searchEngine === engine ? 'text-primary font-medium bg-primary/10' : 'text-on-surface-variant hover:text-emphasis'
+                        settings.searchEngine === engine.id ? 'text-primary font-medium bg-primary/10' : 'text-on-surface-variant hover:text-emphasis'
                       }`}
                     >
-                      {engine.charAt(0).toUpperCase() + engine.slice(1)}
+                      <span className="truncate">{engine.label}</span>
                     </button>
                   ))}
                 </motion.div>
@@ -270,7 +308,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={`${t.searchPlaceholder} ${settings.searchEngine.charAt(0).toUpperCase() + settings.searchEngine.slice(1)}...`}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => window.setTimeout(() => setIsSearchFocused(false), 160)}
+            placeholder={`${t.searchPlaceholder} ${selectedSearchEngineLabel}...`}
             className="bg-transparent border-none focus:outline-none focus:ring-0 text-emphasis placeholder-emphasis text-base sm:text-lg w-full font-sans outline-none"
           />
 
@@ -278,6 +318,58 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
             <kbd className="px-1.5 py-0.5 bg-surface-container-highest/60 rounded border border-outline-variant/10 text-on-surface-variant">⌘</kbd>
             <kbd className="px-1.5 py-0.5 bg-surface-container-highest/60 rounded border border-outline-variant/10 text-on-surface-variant">K</kbd>
           </div>
+
+          <AnimatePresence>
+            {shouldShowSearchHistory && (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                transition={{ duration: 0.16 }}
+                className="absolute left-0 right-0 top-full mt-3 bg-surface-container-high/95 border border-outline-variant/20 rounded-2xl shadow-2xl py-2 z-40 backdrop-blur-3xl overflow-hidden text-left"
+              >
+                <div className="flex items-center justify-between gap-3 px-4 pb-2 mb-1 border-b border-outline-variant/10">
+                  <span className="text-[10px] uppercase tracking-widest font-bold text-primary/70 font-sans">
+                    {t.searchHistoryLabel}
+                  </span>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={handleClearSearchHistory}
+                    className="text-[11px] font-semibold text-on-surface-variant/60 hover:text-emphasis transition-colors"
+                  >
+                    {t.clearSearchHistory}
+                  </button>
+                </div>
+                {filteredSearchHistory.map((item) => (
+                  <div
+                    key={item}
+                    className="group/history flex items-center gap-3 px-4 py-2.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                  >
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => handleHistoryItemClick(item)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left text-on-surface-variant hover:text-emphasis"
+                      title={item}
+                    >
+                      <LucideIcon name="History" size={17} className="shrink-0 opacity-70" />
+                      <span className="truncate text-sm sm:text-base font-sans">{item}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => handleRemoveHistoryItem(item)}
+                      className="shrink-0 p-1.5 rounded-full text-on-surface-variant/50 opacity-0 group-hover/history:opacity-100 hover:text-emphasis hover:bg-black/10 dark:hover:bg-white/10 transition-all"
+                      title={settings.language === 'zh' ? '删除这条搜索记录' : 'Remove this search'}
+                    >
+                      <LucideIcon name="X" size={14} />
+                    </button>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </form>
       </motion.div>
 

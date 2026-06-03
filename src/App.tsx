@@ -49,6 +49,7 @@ const INITIAL_TASKS_PRESET: Task[] = [
 const INITIAL_SETTINGS: UserSettings = {
   name: 'Alex',
   searchEngine: 'google',
+  customSearchEngines: [],
   bgUrl: BACKGROUND_PRESETS[0].url,
   fontScale: 100,
   layout: 'grid',
@@ -58,7 +59,9 @@ const INITIAL_SETTINGS: UserSettings = {
   language: 'en',
   tabsAutoExpand: true,
   quickLinksOpenInNewTab: true,
-  defaultTab: 'home'
+  defaultTab: 'home',
+  searchHistoryEnabled: true,
+  searchOpenInNewTab: true
 };
 
 export default function App() {
@@ -170,13 +173,19 @@ export default function App() {
   const t = translations[settings.language || 'en'];
 
   const updateSettings = (key: keyof UserSettings, value: any) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSettings((prev) => {
+      if (typeof value === 'function') {
+        return value(prev);
+      }
+      return { ...prev, [key]: value };
+    });
   };
 
   const resetAllSettings = () => {
     setSettings(INITIAL_SETTINGS);
     setTasks(INITIAL_TASKS_PRESET);
     setQuickLinks(DEFAULT_QUICK_LINKS);
+    setStoredValue(STORAGE_KEYS.searchHistory, []);
     setActiveTab('home');
   };
 

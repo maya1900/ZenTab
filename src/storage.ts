@@ -3,7 +3,8 @@ export const STORAGE_KEYS = {
   tasks: 'zentab_tasks',
   quickLinks: 'zentab_links',
   manualGroups: 'zentab_manual_groups',
-  readLater: 'zentab_read_later'
+  readLater: 'zentab_read_later',
+  searchHistory: 'zentab_search_history'
 } as const;
 
 const hasChromeStorage = () =>

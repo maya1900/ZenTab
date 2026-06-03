@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ZenTab",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "A minimal, aesthetic browser new tab page to help you focus and find peace.",
   "homepage_url": "https://blog.haivo.bot.cd/articles/zentab",
   "icons": {

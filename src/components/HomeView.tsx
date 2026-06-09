@@ -257,7 +257,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.6, delay: 0.2 }}
-        className="w-full max-w-xl sm:max-w-2xl mb-12"
+        className={`relative w-full max-w-xl sm:max-w-2xl mb-12 ${shouldShowSearchHistory ? 'z-50' : 'z-20'}`}
       >
         <form
           onSubmit={handleSearchSubmit}
@@ -326,7 +326,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.98 }}
                 transition={{ duration: 0.16 }}
-                className="absolute left-0 right-0 top-full mt-3 bg-surface-container-high/95 border border-outline-variant/20 rounded-2xl shadow-2xl py-2 z-40 backdrop-blur-3xl overflow-hidden text-left"
+                onMouseDown={(event) => event.preventDefault()}
+                className="absolute left-0 right-0 top-full mt-3 z-[70] cursor-default overflow-hidden rounded-2xl border border-outline-variant/20 bg-surface-container-high/95 py-2 text-left shadow-2xl backdrop-blur-3xl"
               >
                 <div className="flex items-center justify-between gap-3 px-4 pb-2 mb-1 border-b border-outline-variant/10">
                   <span className="text-[10px] uppercase tracking-widest font-bold text-primary/70 font-sans">
@@ -378,7 +379,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ settings, updateSettings, ta
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.4 }}
-        className="text-center min-h-[140px] px-2 w-full max-w-md"
+        className="relative z-10 text-center min-h-[140px] px-2 w-full max-w-md"
       >
         <AnimatePresence mode="wait">
           {!settings.currentIntent ? (

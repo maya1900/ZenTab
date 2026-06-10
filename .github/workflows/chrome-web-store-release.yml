@@ -1,6 +1,9 @@
 name: Chrome Web Store Release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       publish_target:
@@ -22,6 +25,7 @@ jobs:
   release:
     name: Build and release extension
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore: release v')
 
     steps:
       - name: Checkout main
@@ -65,6 +69,15 @@ jobs:
           path: release/zentab-v${{ steps.version.outputs.version }}.zip
           if-no-files-found: error
 
+      - name: Upload to Chrome Web Store
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          PUBLISH_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_target || 'public' }}
+        run: npm run extension:publish -- "release/zentab-v${{ steps.version.outputs.version }}.zip" "$PUBLISH_TARGET"
+
       - name: Commit version bump
         run: |
           git config user.name "github-actions[bot]"
@@ -83,11 +96,3 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "v${{ steps.version.outputs.version }}" \
             --notes "Chrome extension package for v${{ steps.version.outputs.version }}."
-
-      - name: Upload to Chrome Web Store
-        env:
-          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
-          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
-          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
-        run: npm run extension:publish -- "release/zentab-v${{ steps.version.outputs.version }}.zip" "${{ inputs.publish_target }}"

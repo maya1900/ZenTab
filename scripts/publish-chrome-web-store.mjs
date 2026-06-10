@@ -42,6 +42,11 @@ const getAccessToken = async () => {
 
   const result = await response.json();
   if (!response.ok) {
+    if (result.error === 'invalid_grant') {
+      throw new Error(
+        'Failed to refresh OAuth token: CHROME_REFRESH_TOKEN is expired or revoked. Generate a new Chrome Web Store OAuth refresh token and update the GitHub Actions secret.'
+      );
+    }
     throw new Error(`Failed to refresh OAuth token: ${JSON.stringify(result)}`);
   }
 

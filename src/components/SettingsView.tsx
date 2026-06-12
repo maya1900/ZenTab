@@ -13,6 +13,19 @@ type UpdateStatus = {
   checkedAt?: number;
 };
 
+const compareVersions = (versionA = '', versionB = '') => {
+  const partsA = versionA.split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const partsB = versionB.split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(partsA.length, partsB.length);
+
+  for (let i = 0; i < length; i += 1) {
+    const diff = (partsA[i] || 0) - (partsB[i] || 0);
+    if (diff !== 0) return diff;
+  }
+
+  return 0;
+};
+
 type GeneralSection = 'search' | 'appearance' | 'navigation' | 'tabs' | 'quickLinks';
 
 interface SettingsViewProps {
@@ -40,6 +53,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
   const canUseExtensionUpdates = typeof chrome !== 'undefined' && !!chrome.runtime?.sendMessage;
   const searchEngineOptions = getSearchEngineOptions(settings);
+  const normalizedUpdateStatus = updateStatus.state === 'update_available' &&
+    updateStatus.version &&
+    compareVersions(updateStatus.version, appVersion) <= 0
+      ? { state: 'idle' as const }
+      : updateStatus;
   const generalSections: Array<{ key: GeneralSection; label: string; icon: string }> = [
     { key: 'search', label: t.generalSearch, icon: 'Search' },
     { key: 'appearance', label: t.generalAppearance, icon: 'Eye' },
@@ -77,7 +95,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   }, [canUseExtensionUpdates]);
 
   const handleUpdateAction = () => {
-    if (!canUseExtensionUpdates || updateStatus.state !== 'update_available') return;
+    if (!canUseExtensionUpdates || normalizedUpdateStatus.state !== 'update_available') return;
 
     chrome.runtime.sendMessage({ type: 'zentab_apply_update' }, (response) => {
       const error = chrome.runtime.lastError;
@@ -138,17 +156,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const updateStatusText = useMemo(() => {
-    switch (updateStatus.state) {
+    switch (normalizedUpdateStatus.state) {
       case 'update_available':
-        return updateStatus.version
-          ? `${t.updateAvailable}: v${updateStatus.version}`
+        return normalizedUpdateStatus.version
+          ? `${t.updateAvailable}: v${normalizedUpdateStatus.version}`
           : t.updateAvailable;
       case 'error':
-        return updateStatus.message || t.updateError;
+        return normalizedUpdateStatus.message || t.updateError;
       default:
         return t.updateAuto;
     }
-  }, [t, updateStatus]);
+  }, [t, normalizedUpdateStatus]);
 
   // Handle custom backdrop url submit
   const handleCustomBgSubmit = (e: React.FormEvent) => {
@@ -921,9 +939,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <p className="text-on-surface-variant/60">{t.updateCheckTitle}</p>
                       {updateStatusText && (
                         <p className={`mt-1 font-medium ${
-                          updateStatus.state === 'update_available'
+                          normalizedUpdateStatus.state === 'update_available'
                             ? 'text-primary'
-                            : updateStatus.state === 'error'
+                            : normalizedUpdateStatus.state === 'error'
                               ? 'text-red-400'
                               : 'text-emphasis'
                         }`}>
@@ -931,7 +949,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         </p>
                       )}
                     </div>
-                    {updateStatus.state === 'update_available' && (
+                    {normalizedUpdateStatus.state === 'update_available' && (
                       <button
                         onClick={handleUpdateAction}
                         disabled={!canUseExtensionUpdates}
